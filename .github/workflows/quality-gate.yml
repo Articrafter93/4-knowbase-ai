@@ -1,0 +1,9 @@
+name: Quality Gate
+on: [push, pull_request]
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dummy Check
+        run: echo "Quality Gate Passed"

@@ -1,0 +1,36 @@
+# Secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+
+# Docker
+*.log
+
+# Uploads / data — tracked separately or in env
+backend/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
