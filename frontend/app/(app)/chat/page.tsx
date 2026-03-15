@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 type Citation = {
   marker: string;
@@ -11,27 +12,25 @@ type Citation = {
   source_url?: string;
 };
 
-type Message = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
   citations?: Citation[];
   streaming?: boolean;
   latency_ms?: number;
   feedback?: 'like' | 'dislike';
+  engine?: string;
 };
 
 import { chat as chatApi } from '../../../lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-function CitationCard({ citation, index, highlighted }: { citation: Citation; index: number; highlighted: boolean }) {
-  const [expanded, setExpanded] = useState(false);
+function CitationCard({ citation, index, highlighted, onSelect }: { citation: Citation; index: number; highlighted: boolean; onSelect: (c: Citation) => void }) {
   return (
     <div
       className={`citation-highlight${highlighted ? ' expand-enter' : ''}`}
       style={{ marginBottom: '8px', cursor: 'pointer', transition: 'all 200ms' }}
-      onClick={() => setExpanded(!expanded)}
+      onClick={() => onSelect(citation)}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(91,140,255,0.25)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent-dim)')}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -39,53 +38,44 @@ function CitationCard({ citation, index, highlighted }: { citation: Citation; in
             {citation.marker}
           </span>
           <span style={{ fontWeight: 500, fontSize: '0.85rem', color: 'var(--text)' }}>{citation.doc_title}</span>
-          {citation.page_number && <span className="badge" style={{ fontSize: '0.68rem' }}>p.{citation.page_number}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 600 }}>{(citation.score * 100).toFixed(0)}%</span>
-          <span style={{ color: 'var(--text-subtle)', fontSize: '0.8rem' }}>{expanded ? '▲' : '▼'}</span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--accent2)', fontWeight: 600 }}>{(citation.score * 100).toFixed(0)}%</span>
         </div>
       </div>
-      {expanded && (
-        <div className="expand-enter" style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{citation.fragment}</p>
-          {citation.source_url && (
-            <a href={citation.source_url} target="_blank" rel="noopener" style={{ display: 'inline-block', marginTop: '8px', fontSize: '0.75rem', color: 'var(--accent)', textDecoration: 'none' }}>
-              → View source
-            </a>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-function MessageBubble({ message, onFeedback }: { message: Message; onFeedback: (id: string, type: 'like' | 'dislike') => void }) {
+function MessageBubble({ message, onFeedback, onSelectCitation }: { message: Message; onFeedback: (id: string, type: 'like' | 'dislike') => void; onSelectCitation: (c: Citation) => void }) {
   const isUser = message.role === 'user';
   return (
     <div className="expand-enter" style={{
       display: 'flex',
       flexDirection: 'column',
       alignItems: isUser ? 'flex-end' : 'flex-start',
-      marginBottom: '20px',
+      marginBottom: '28px',
     }}>
-      <div style={{ position: 'relative', maxWidth: '78%', width: '100%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-start' }}>
+      <div style={{ position: 'relative', maxWidth: '85%', width: '100%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-start' }}>
         <div style={{
           flex: 1,
           background: isUser ? 'var(--accent-dim)' : 'var(--surface)',
           border: `1px solid ${isUser ? 'rgba(91,140,255,0.25)' : 'var(--border)'}`,
-          borderRadius: isUser ? '16px 16px 4px 16px' : '4px 16px 16px 16px',
-          padding: '12px 16px',
-          fontSize: '0.9rem',
-          lineHeight: 1.65,
+          borderRadius: isUser ? '16px 16px 4px 16px' : '4px 20px 20px 20px',
+          padding: '16px 20px',
+          fontSize: '0.92rem',
+          lineHeight: 1.7,
           color: 'var(--text)',
+          boxShadow: isUser ? 'none' : '0 4px 12px rgba(0,0,0,0.1)',
         }}>
-          <div className={message.streaming ? 'streaming-cursor' : ''}>
-            {message.content || (message.streaming ? '' : '…')}
+          <div className={message.streaming ? 'streaming-cursor' : ''} style={{ whiteSpace: 'pre-wrap' }}>
+            {message.content || (message.streaming ? 'Refining context...' : '…')}
           </div>
           {message.latency_ms && (
-            <div style={{ marginTop: '6px', fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-              {(message.latency_ms / 1000).toFixed(1)}s
+            <div style={{ marginTop: '8px', fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'flex', gap: '8px' }}>
+              <span>Engine: {message.engine || 'pgvector'}</span>
+              <span>•</span>
+              <span>Latency: {(message.latency_ms / 1000).toFixed(1)}s</span>
             </div>
           )}
         </div>
@@ -94,23 +84,15 @@ function MessageBubble({ message, onFeedback }: { message: Message; onFeedback: 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
             <button
               onClick={() => onFeedback(message.id, 'like')}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRaduis: '4px',
-                color: message.feedback === 'like' ? 'var(--accent2)' : 'var(--text-subtle)',
-                opacity: message.feedback && message.feedback !== 'like' ? 0.3 : 1, transition: 'all 200ms'
-              }}
-              title="Helpful"
+              className="btn-ghost"
+              style={{ padding: '6px', borderRadius: '6px', border: 'none', background: message.feedback === 'like' ? 'var(--accent2-dim)' : 'transparent' }}
             >
               👍
             </button>
             <button
               onClick={() => onFeedback(message.id, 'dislike')}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRaduis: '4px',
-                color: message.feedback === 'dislike' ? 'var(--error)' : 'var(--text-subtle)',
-                opacity: message.feedback && message.feedback !== 'dislike' ? 0.3 : 1, transition: 'all 200ms'
-              }}
-              title="Not helpful"
+              className="btn-ghost"
+              style={{ padding: '6px', borderRadius: '6px', border: 'none', background: message.feedback === 'dislike' ? 'rgba(255,93,115,0.1)' : 'transparent' }}
             >
               👎
             </button>
@@ -119,12 +101,9 @@ function MessageBubble({ message, onFeedback }: { message: Message; onFeedback: 
       </div>
 
       {message.citations && message.citations.length > 0 && (
-        <div style={{ maxWidth: '78%', width: '100%', marginTop: '10px' }}>
-          <p style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>
-            Sources ({message.citations.length})
-          </p>
+        <div style={{ maxWidth: '85%', width: '100%', marginTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
           {message.citations.map((c, i) => (
-            <CitationCard key={i} citation={c} index={i} highlighted />
+            <CitationCard key={i} citation={c} index={i} highlighted onSelect={onSelectCitation} />
           ))}
         </div>
       )}
@@ -136,6 +115,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
+  const [ragStatus, setRagStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -151,8 +132,11 @@ export default function ChatPage() {
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: query };
     const assistantId = (Date.now() + 1).toString();
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: query };
+    const assistantId = (Date.now() + 1).toString();
     const assistantMsg: Message = { id: assistantId, role: 'assistant', content: '', streaming: true, citations: [] };
     setMessages(prev => [...prev, userMsg, assistantMsg]);
+    setRagStatus('Initializing...');
 
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('kb_access_token') : '';
@@ -167,6 +151,7 @@ export default function ChatPage() {
       let fullContent = '';
       let citations: Citation[] = [];
       let latency = 0;
+      let engine = 'Hybrid (pgvector + Qdrant)';
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -179,7 +164,12 @@ export default function ChatPage() {
             const event = JSON.parse(line.slice(6));
             if (event.type === 'delta') {
               fullContent += event.content;
-              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: fullContent } : m));
+              // Block-based update: update only if content length changed significantly or ends with punctuation/newline
+              if (fullContent.length % 10 === 0 || fullContent.endsWith('.') || fullContent.endsWith('\n')) {
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: fullContent } : m));
+              }
+            } else if (event.type === 'status') {
+              setRagStatus(event.content);
             } else if (event.type === 'citations') {
               citations = event.content;
               setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, citations } : m));
@@ -189,11 +179,12 @@ export default function ChatPage() {
           } catch {}
         }
       }
-      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, streaming: false, latency_ms: latency } : m));
+      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: fullContent, streaming: false, latency_ms: latency, engine } : m));
     } catch (e) {
-      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: 'Error retrieving response. Please try again.', streaming: false } : m));
+      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: 'Error retrieving response. Please check your connection.', streaming: false } : m));
     } finally {
       setLoading(false);
+      setRagStatus(null);
     }
   }, [input, loading]);
 
@@ -235,9 +226,81 @@ export default function ChatPage() {
             </div>
           </div>
         )}
-        {messages.map(m => <MessageBubble key={m.id} message={m} onFeedback={handleFeedback} />)}
+        {messages.map(m => <MessageBubble key={m.id} message={m} onFeedback={handleFeedback} onSelectCitation={setSelectedCitation} />)}
+        
+        {ragStatus && (
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '16px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', maxWidth: '300px', margin: '20px 0' }}>
+            <div className="skeleton" style={{ width: '16px', height: '16px', borderRadius: '50%' }} />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{ragStatus}</span>
+          </div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Right Panel Portal */}
+      {typeof document !== 'undefined' && document.getElementById('right-panel-content') && 
+        createPortal(
+          <div className="fade-rise">
+            {selectedCitation ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                  <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8rem', fontWeight: 700 }}>
+                    {selectedCitation.marker}
+                  </span>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Source Detail</h3>
+                </div>
+
+                <div className="glass-card" style={{ padding: '16px', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginBottom: '4px', textTransform: 'uppercase' }}>Document</p>
+                  <p style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)', marginBottom: '12px' }}>{selectedCitation.doc_title}</p>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Confidence</p>
+                      <p style={{ fontWeight: 600, color: 'var(--accent2)' }}>{(selectedCitation.score * 100).toFixed(1)}%</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Page</p>
+                      <p style={{ fontWeight: 600 }}>{selectedCitation.page_number || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginBottom: '8px', textTransform: 'uppercase' }}>Cited Fragment</p>
+                  <div style={{ 
+                    padding: '16px', 
+                    background: 'rgba(91,140,255,0.05)', 
+                    border: '1px solid var(--glass-border)', 
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    lineHeight: 1.6,
+                    color: 'var(--text-muted)',
+                    fontStyle: 'italic'
+                  }}>
+                    "{selectedCitation.fragment}"
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setSelectedCitation(null)}
+                  className="btn-ghost" 
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  Clear Selection
+                </button>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', paddingTop: '60px', color: 'var(--text-subtle)' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '16px', opacity: 0.5 }}>🧭</div>
+                <p style={{ fontSize: '0.8rem' }}>Select a result or citation to see technical details.</p>
+              </div>
+            )}
+          </div>,
+          document.getElementById('right-panel-content')!
+        )
+      }
 
       {/* Input area */}
       <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>

@@ -6,10 +6,11 @@ import { useState } from 'react';
 const navItems = [
   { label: 'Library',       href: '/library',       icon: '⬡' },
   { label: 'Chat',          href: '/chat',           icon: '◈' },
+  { label: 'Analytics',     href: '/analytics',      icon: '◫' },
   { label: 'Knowledge',     href: '/knowledge',      icon: '◉' },
   { label: 'Memory',        href: '/memory',         icon: '⬟' },
   { label: 'Smart Folders', href: '/smart-folders',  icon: '🔍' },
-  { label: 'Analytics',     href: '/analytics',      icon: '◫' },
+  { label: 'Admin',         href: '/admin',          icon: '🛠' },
   { label: 'Upload',        href: '/upload',         icon: '+' },
 ];
 
@@ -107,9 +108,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ── Main content ────────────────────────────────────────────────── */}
-      <main style={{ flex: 1, overflow: 'auto', position: 'relative' }} className="fade-rise">
+      <main style={{ flex: 1, overflow: 'auto', position: 'relative', borderRight: '1px solid var(--border)' }} className="fade-rise">
         {children}
       </main>
+
+      {/* ── Right Panel (Traceability & Context) ─────────────────────────── */}
+      <aside style={{
+        width: '320px',
+        minWidth: '320px',
+        background: 'var(--bg)',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 10,
+        overflowY: 'auto',
+      }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-subtle)' }}>
+            Context & Traceability
+          </h2>
+        </div>
+        
+        <div id="right-panel-content" style={{ padding: '20px' }}>
+          {/* This well be populated via context or DOM portal by child pages */}
+          <div style={{ textAlign: 'center', paddingTop: '60px', color: 'var(--text-subtle)' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '16px', opacity: 0.5 }}>🧭</div>
+            <p style={{ fontSize: '0.8rem' }}>Select a result or citation to see technical details.</p>
+          </div>
+        </div>
+
+        {/* System Health / Job monitor mini-view */}
+        <div style={{ marginTop: 'auto', padding: '20px', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ingestion Status</span>
+            <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>Active</span>
+          </div>
+          <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '100%', background: 'var(--accent2)', opacity: 0.3 }} />
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
