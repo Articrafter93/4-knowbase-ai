@@ -10,8 +10,9 @@ from sqlalchemy import select
 
 from app.core.deps import CurrentUser, DB
 from app.models.smart_folder import SmartFolder
-from app.services.retrieval.hybrid import retrieve_hybrid
 from app.services.embeddings.provider import embed_query
+from app.services.retrieval.hybrid import retrieve_hybrid
+from app.services.security.trimming import get_accessible_collection_ids
 
 router = APIRouter()
 
@@ -104,10 +105,12 @@ async def execute_smart_folder(folder_id: uuid.UUID, current_user: CurrentUser, 
             pass
 
     embedding = await embed_query(folder.query)
+    accessible_collection_ids = await get_accessible_collection_ids(db, current_user.id)
     results = await retrieve_hybrid(
         db=db,
         query_embedding=embedding,
-        owner_id=current_user.id,
+        user_id=current_user.id,
+        accessible_collection_ids=accessible_collection_ids,
         top_k=folder.top_k,
         collection_id=collection_id,
     )

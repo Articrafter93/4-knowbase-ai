@@ -3,6 +3,7 @@ Hybrid retrieval — merges pgvector and Qdrant results using Reciprocal Rank Fu
 Applies security trimming: results are always owner-scoped.
 """
 import uuid
+from datetime import datetime
 from typing import List, Optional
 
 import structlog
@@ -49,9 +50,14 @@ def _rrf_merge(
 async def retrieve_hybrid(
     db: AsyncSession,
     query_embedding: List[float],
-    owner_id: uuid.UUID,
+    user_id: uuid.UUID,
+    accessible_collection_ids: Optional[list[uuid.UUID]] = None,
     top_k: int = 20,
     collection_id: Optional[uuid.UUID] = None,
+    tags: Optional[list[str]] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    source_type: Optional[str] = None,
 ) -> List[dict]:
     """
     Retrieve from pgvector and optionally Qdrant, then fuse with RRF.
@@ -68,9 +74,14 @@ async def retrieve_hybrid(
         pgvector_results = await similarity_search(
             db=db,
             query_embedding=query_embedding,
-            owner_id=owner_id,
+            user_id=user_id,
+            accessible_collection_ids=accessible_collection_ids,
             top_k=top_k,
             collection_id=collection_id,
+            tags=tags,
+            date_from=date_from,
+            date_to=date_to,
+            source_type=source_type,
         )
         log.debug("pgvector results", count=len(pgvector_results))
 
@@ -80,9 +91,14 @@ async def retrieve_hybrid(
             from app.services.vector_store.qdrant_store import hybrid_search
             qdrant_results = await hybrid_search(
                 query_embedding=query_embedding,
-                owner_id=str(owner_id),
+                owner_id=str(user_id),
                 top_k=top_k,
                 collection_id=col_str,
+                accessible_collection_ids=[str(item) for item in (accessible_collection_ids or [])],
+                tags=tags,
+                date_from=date_from,
+                date_to=date_to,
+                source_type=source_type,
             )
             log.debug("Qdrant results", count=len(qdrant_results))
         except Exception as exc:

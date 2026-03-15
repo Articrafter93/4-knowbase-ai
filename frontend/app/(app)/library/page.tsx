@@ -1,5 +1,8 @@
 'use client';
-import { useEffect, useState, useRef, useCallback } from 'react';
+
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+
 import { library as libApi, search as searchApi } from '../../../lib/api';
 
 type SearchResult = {
@@ -9,11 +12,10 @@ type SearchResult = {
   fragment: string;
   score: number;
   page_number?: number;
-  section_title?: string;
   source_type?: string;
 };
 
-type Document = {
+type DocumentItem = {
   id: string;
   title: string;
   source_type: string;
@@ -22,10 +24,18 @@ type Document = {
   chunk_count?: number;
   word_count?: number;
   created_at: string;
+  tags?: string[];
 };
 
 const SOURCE_ICONS: Record<string, string> = {
-  pdf: '📄', docx: '📝', txt: '📃', markdown: '📋', url: '🔗', image: '🖼', audio: '🎵', note: '✏️',
+  pdf: 'PDF',
+  docx: 'DOC',
+  txt: 'TXT',
+  markdown: 'MD',
+  url: 'URL',
+  image: 'IMG',
+  audio: 'AUD',
+  note: 'NOTE',
 };
 
 function SkeletonCard() {
@@ -39,7 +49,7 @@ function SkeletonCard() {
 }
 
 export default function LibraryPage() {
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,196 +58,349 @@ export default function LibraryPage() {
   const [selectedCollection, setSelectedCollection] = useState<string | undefined>();
   const [showFavorites, setShowFavorites] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'trashed'>('active');
-  const debounceRef = useRef<NodeJS.Timeout>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
       libApi.getDocuments(selectedCollection, statusFilter, showFavorites),
       libApi.getCollections(),
-    ]).then(([docs, cols]) => {
-      setDocuments(docs);
-      setCollections(cols);
-    }).finally(() => setLoading(false));
+    ])
+      .then(([docs, cols]) => {
+        setDocuments(docs);
+        setCollections(cols);
+      })
+      .finally(() => setLoading(false));
   }, [selectedCollection, statusFilter, showFavorites]);
 
-  const handleSearch = useCallback((q: string) => {
-    setSearchQuery(q);
+  async function handleSearch(query: string) {
+    setSearchQuery(query);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) { setSearchResults(null); return; }
+    if (!query.trim()) {
+      setSearchResults(null);
+      return;
+    }
+
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await searchApi.query(q, selectedCollection);
-        setSearchResults(res.results);
-      } finally { setSearching(false); }
-    }, 400);
-  }, [selectedCollection]);
-
-  const updateDocStatus = async (id: string, newStatus: string) => {
-    if (newStatus === 'deleted') {
-      // Hard delete
-      await libApi.deleteDocument(id);
-      setDocuments(docs => docs.filter(d => d.id !== id));
-    } else {
-      await libApi.updateDocumentStatus(id, newStatus);
-      if (newStatus !== statusFilter) {
-        setDocuments(docs => docs.filter(d => d.id !== id));
-      } else {
-        setDocuments(docs => docs.map(d => d.id === id ? { ...d, status: newStatus } : d));
+        const response = await searchApi.query({
+          q: query,
+          collectionId: selectedCollection,
+        });
+        setSearchResults(response.results);
+      } finally {
+        setSearching(false);
       }
-    }
-  };
+    }, 300);
+  }
 
-  const filteredDocs = documents; // Now server-filtered via useEffect dependencies
+  async function handleToggleFavorite(id: string) {
+    const response = await libApi.toggleFavorite(id);
+    setDocuments((current) =>
+      current.map((document) =>
+        document.id === id ? { ...document, is_favorite: response.is_favorite } : document,
+      ),
+    );
+  }
+
+  async function updateDocStatus(id: string, newStatus: string) {
+    if (newStatus === 'deleted') {
+      await libApi.deleteDocument(id);
+      setDocuments((current) => current.filter((document) => document.id !== id));
+      return;
+    }
+
+    await libApi.updateDocumentStatus(id, newStatus);
+    if (newStatus !== statusFilter) {
+      setDocuments((current) => current.filter((document) => document.id !== id));
+      return;
+    }
+    setDocuments((current) =>
+      current.map((document) => (document.id === id ? { ...document, status: newStatus } : document)),
+    );
+  }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '24px 32px 0', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '4px', letterSpacing: '-0.02em' }}>Library</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{documents.length} documents in your knowledge base</p>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '4px', letterSpacing: '-0.02em' }}>
+              Library
+            </h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              {documents.length} documents in your knowledge base
+            </p>
           </div>
-          <a href="/upload" className="btn-primary">+ Add document</a>
+          <Link href="/upload" className="btn-primary">
+            Add document
+          </Link>
         </div>
 
-        {/* Search bar */}
         <div style={{ position: 'relative', marginBottom: '20px' }}>
-          <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)', fontSize: '0.9rem' }}>🔍</span>
           <input
             id="library-search"
             className="input"
-            style={{ paddingLeft: '38px' }}
-            placeholder="Search your knowledge base…"
+            style={{ paddingLeft: '16px', paddingRight: '92px' }}
+            placeholder="Search your knowledge base"
             value={searchQuery}
-            onChange={e => handleSearch(e.target.value)}
+            onChange={(event) => void handleSearch(event.target.value)}
           />
-          {searching && <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)', fontSize: '0.75rem' }}>Retrieving…</span>}
+          {searching && (
+            <span
+              style={{
+                position: 'absolute',
+                right: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-subtle)',
+                fontSize: '0.75rem',
+              }}
+            >
+              Searching
+            </span>
+          )}
         </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
-            {['active', 'archived', 'trashed'].map((s) => (
+            {(['active', 'archived', 'trashed'] as const).map((status) => (
               <button
-                key={s}
-                className={`btn-ghost ${statusFilter === s ? 'active' : ''}`}
-                style={{ fontSize: '0.75rem', padding: '4px 12px', textTransform: 'capitalize' }}
-                onClick={() => setStatusFilter(s as any)}
+                key={status}
+                className="btn-ghost"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '4px 12px',
+                  textTransform: 'capitalize',
+                  borderColor: statusFilter === status ? 'var(--accent)' : 'transparent',
+                  color: statusFilter === status ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+                onClick={() => setStatusFilter(status)}
               >
-                {s === 'active' ? 'Files' : s}
+                {status === 'active' ? 'Files' : status}
               </button>
             ))}
           </div>
-          
-          <div style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
 
           <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
-            <button className={`btn-ghost${!selectedCollection && !showFavorites ? ' active' : ''}`}
-              onClick={() => { setSelectedCollection(undefined); setShowFavorites(false); }} style={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+            <button
+              className="btn-ghost"
+              onClick={() => {
+                setSelectedCollection(undefined);
+                setShowFavorites(false);
+              }}
+              style={{
+                whiteSpace: 'nowrap',
+                fontSize: '0.8rem',
+                borderColor: !selectedCollection && !showFavorites ? 'var(--accent)' : 'var(--border)',
+                color: !selectedCollection && !showFavorites ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            >
               All
             </button>
-            {collections.map(c => (
-              <button key={c.id} className="btn-ghost" onClick={() => setSelectedCollection(c.id)}
-                style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', borderColor: selectedCollection === c.id ? 'var(--accent)' : 'var(--border)', color: selectedCollection === c.id ? 'var(--accent)' : 'var(--text-muted)' }}>
-                {c.icon || '📁'} {c.name}
+            {collections.map((collection) => (
+              <button
+                key={collection.id}
+                className="btn-ghost"
+                onClick={() => setSelectedCollection(collection.id)}
+                style={{
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.8rem',
+                  borderColor: selectedCollection === collection.id ? 'var(--accent)' : 'var(--border)',
+                  color: selectedCollection === collection.id ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                {collection.icon || 'COL'} {collection.name}
               </button>
             ))}
-            <button className="btn-ghost" onClick={() => setShowFavorites(f => !f)}
-              style={{ fontSize: '0.8rem', borderColor: showFavorites ? 'var(--warn)' : 'var(--border)', color: showFavorites ? 'var(--warn)' : 'var(--text-muted)' }}>
-              ★ Favorites
+            <button
+              className="btn-ghost"
+              onClick={() => setShowFavorites((current) => !current)}
+              style={{
+                fontSize: '0.8rem',
+                borderColor: showFavorites ? 'var(--warn)' : 'var(--border)',
+                color: showFavorites ? 'var(--warn)' : 'var(--text-muted)',
+              }}
+            >
+              Favorites
             </button>
           </div>
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
-        {/* Search results */}
         {searchResults !== null ? (
           <div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>{searchResults.length} results for "{searchQuery}"</p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              {searchResults.length} results for "{searchQuery}"
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {searchResults.map((r, i) => (
-                <div key={r.chunk_id} className="glass-card expand-enter citation-highlight" style={{ padding: '14px 18px' }}>
+              {searchResults.map((result, index) => (
+                <Link
+                  key={result.chunk_id}
+                  href={`/library/${result.document_id}?chunkId=${result.chunk_id}`}
+                  className="glass-card citation-highlight"
+                  style={{ padding: '14px 18px', textDecoration: 'none' }}
+                >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                        <span style={{ color: 'var(--accent)', fontSize: '0.75rem', fontWeight: 600 }}>#{i+1}</span>
-                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{r.doc_title}</span>
-                        {r.page_number && <span className="badge" style={{ fontSize: '0.7rem' }}>p.{r.page_number}</span>}
+                        <span style={{ color: 'var(--accent)', fontSize: '0.75rem', fontWeight: 600 }}>#{index + 1}</span>
+                        <span style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text)' }}>{result.doc_title}</span>
+                        {result.page_number && (
+                          <span className="badge" style={{ fontSize: '0.7rem' }}>
+                            p.{result.page_number}
+                          </span>
+                        )}
                       </div>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{r.fragment}</p>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{result.fragment}</p>
                     </div>
                     <div style={{ textAlign: 'right', minWidth: '60px' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>{(r.score * 100).toFixed(0)}%</div>
-                      <div className="score-bar" style={{ width: `${r.score * 100}%`, marginTop: '4px' }} />
+                      <div style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>
+                        {(result.score * 100).toFixed(0)}%
+                      </div>
+                      <div className="score-bar" style={{ width: `${result.score * 100}%`, marginTop: '4px' }} />
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
-              {searchResults.length === 0 && <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>No results found.</p>}
+              {searchResults.length === 0 && (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>No results found.</p>
+              )}
             </div>
           </div>
+        ) : loading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <SkeletonCard key={index} />
+            ))}
+          </div>
+        ) : documents.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>KB</div>
+            <h3 style={{ fontWeight: 600, marginBottom: '8px' }}>No documents yet</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Add your first document to get started.</p>
+            <Link href="/upload" className="btn-primary">
+              Add document
+            </Link>
+          </div>
         ) : (
-          <>
-            {loading ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
-                {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-              </div>
-            ) : filteredDocs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📚</div>
-                <h3 style={{ fontWeight: 600, marginBottom: '8px' }}>No documents yet</h3>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Add your first document to get started.</p>
-                <a href="/upload" className="btn-primary">+ Add document</a>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
-                {filteredDocs.map(doc => (
-                  <div key={doc.id} className="glass-card" style={{ padding: '18px', cursor: 'pointer', position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ fontSize: '1.4rem' }}>{SOURCE_ICONS[doc.source_type] || '📄'}</div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => toggleFavorite(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: doc.is_favorite ? 'var(--warn)' : 'var(--border-light)' }}>★</button>
-                      </div>
-                    </div>
-                    <h3 style={{ fontWeight: 600, fontSize: '0.95rem', marginTop: '10px', marginBottom: '6px', lineClamp: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' as any }}>
-                      {doc.title}
-                    </h3>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      <span className={`badge ${doc.status === 'active' ? 'badge-green' : doc.status === 'archived' ? 'badge-warn' : doc.status === 'trashed' ? 'badge-error' : ''}`}>
-                        {doc.status}
-                      </span>
-                      {doc.chunk_count && <span className="badge">{doc.chunk_count} chunks</span>}
-                    </div>
-                    
-                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-                        {new Date(doc.created_at).toLocaleDateString()}
-                      </p>
-                      
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        {statusFilter === 'active' && (
-                          <button onClick={() => updateDocStatus(doc.id, 'archived')} style={{ background: 'none', border: 'none', color: 'var(--text-subtle)', fontSize: '0.7rem', cursor: 'pointer' }}>Archive</button>
-                        )}
-                        {statusFilter !== 'trashed' ? (
-                          <button onClick={() => updateDocStatus(doc.id, 'trashed')} style={{ background: 'none', border: 'none', color: 'var(--error)', fontSize: '0.7rem', cursor: 'pointer' }}>Trash</button>
-                        ) : (
-                          <>
-                            <button onClick={() => updateDocStatus(doc.id, 'active')} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.7rem', cursor: 'pointer' }}>Restore</button>
-                            <button onClick={() => updateDocStatus(doc.id, 'deleted')} style={{ background: 'none', border: 'none', color: 'var(--error)', fontSize: '0.7rem', cursor: 'pointer' }}>Delete</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+            {documents.map((document) => (
+              <div key={document.id} className="glass-card" style={{ padding: '18px', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: 'var(--accent)',
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    {SOURCE_ICONS[document.source_type] || 'DOC'}
                   </div>
-                ))}
+                  <button
+                    onClick={() => void handleToggleFavorite(document.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      color: document.is_favorite ? 'var(--warn)' : 'var(--border-light)',
+                    }}
+                  >
+                    *
+                  </button>
+                </div>
+
+                <Link
+                  href={`/library/${document.id}`}
+                  style={{
+                    display: 'block',
+                    textDecoration: 'none',
+                    marginTop: '10px',
+                    marginBottom: '6px',
+                    color: 'var(--text)',
+                    fontWeight: 600,
+                    fontSize: '0.95rem',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {document.title}
+                </Link>
+
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <span
+                    className={`badge ${
+                      document.status === 'active'
+                        ? 'badge-green'
+                        : document.status === 'archived'
+                          ? 'badge-warn'
+                          : 'badge-error'
+                    }`}
+                  >
+                    {document.status}
+                  </span>
+                  {document.chunk_count ? <span className="badge">{document.chunk_count} chunks</span> : null}
+                  {(document.tags || []).slice(0, 2).map((tag) => (
+                    <span key={tag} className="badge">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid rgba(255,255,255,0.05)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                    {new Date(document.created_at).toLocaleDateString()}
+                  </p>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    {statusFilter === 'active' && (
+                      <button
+                        onClick={() => void updateDocStatus(document.id, 'archived')}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-subtle)', fontSize: '0.7rem', cursor: 'pointer' }}
+                      >
+                        Archive
+                      </button>
+                    )}
+                    {statusFilter !== 'trashed' ? (
+                      <button
+                        onClick={() => void updateDocStatus(document.id, 'trashed')}
+                        style={{ background: 'none', border: 'none', color: 'var(--error)', fontSize: '0.7rem', cursor: 'pointer' }}
+                      >
+                        Trash
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => void updateDocStatus(document.id, 'active')}
+                          style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.7rem', cursor: 'pointer' }}
+                        >
+                          Restore
+                        </button>
+                        <button
+                          onClick={() => void updateDocStatus(document.id, 'deleted')}
+                          style={{ background: 'none', border: 'none', color: 'var(--error)', fontSize: '0.7rem', cursor: 'pointer' }}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
       </div>
     </div>

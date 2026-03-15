@@ -1,90 +1,158 @@
-# 🧠 KnowBase — Personal Knowledge Base with AI
+# KnowBase AI
 
-[![Status](https://img.shields.io/badge/Status-Certification_Ready-success?style=for-the-badge)](#)
-[![Stack](https://img.shields.io/badge/Stack-FastAPI_|_Next.js_|_Qdrant_|_pgvector-blue?style=for-the-badge)](#)
+KnowBase is a personal knowledge base with AI chat, hybrid retrieval, persistent memory and source-linked citations. The repository is structured as a Next.js frontend plus a FastAPI backend with PostgreSQL, pgvector, Qdrant, Redis and Celery.
 
-**KnowBase** is a professional-grade "second brain" platform designed for high-performance knowledge management. It enables users to store, organize, and query their private documentation through a sophisticated Hybrid RAG ecosystem.
+## Product Scope
 
----
+- Upload PDF, DOCX, TXT, Markdown, images and audio.
+- Save direct notes and web links.
+- Search with collection, date and tag filters.
+- Chat over your own corpus with citations by chunk.
+- Jump from a citation to the exact document chunk.
+- Persist conversations, feedback and editable memory entries.
+- Monitor ingestion jobs and retrieval health from the admin area.
 
-## 🏗 Executive Architecture
-
-KnowBase utilizes a multi-layered storage and retrieval strategy to ensure maximum precision and scalability.
+## Architecture
 
 ```mermaid
-graph TD
-    User((User)) <--> NextJS[Next.js Frontend / Executive UI]
-    NextJS <--> FastAPI[FastAPI Backend]
-    
-    subgraph "Logic & Orchestration"
-        FastAPI <--> LangGraph[LangGraph Controller]
-        LangGraph <--> Memory[Conversation Memory Layer]
-    end
-    
-    subgraph "Hybrid Vector Storage"
-        FastAPI <--> Postgres[(PostgreSQL + pgvector)]
-        FastAPI <--> Qdrant[(Qdrant Vector DB)]
-        Postgres -- Canonical Source --> Qdrant
-    end
-    
-    subgraph "Async Processing"
-        FastAPI --> Redis[Redis Job Queue]
-        Redis --> Celery[Celery Worker]
-        Celery --> Ingestion[Ingestion Pipeline: PDF/DOC/URL/Audio]
-    end
+flowchart LR
+  User["User"] --> Frontend["Next.js Frontend"]
+  Frontend --> API["FastAPI API"]
+  API --> Postgres["PostgreSQL"]
+  API --> Pgvector["pgvector"]
+  API --> Qdrant["Qdrant"]
+  API --> Redis["Redis"]
+  Redis --> Worker["Celery Worker"]
+  Worker --> Pipeline["Parsing -> Chunking -> Embeddings -> Indexing"]
+  API --> Memory["LangGraph Memory + Retrieval Orchestration"]
 ```
 
-### Key Technical Pillars:
-- **Hybrid Retrieval**: Simultaneous dense and sparse search merging results from pgvector and Qdrant using RRF (Reciprocal Rank Fusion).
-- **Security Trimming**: End-to-end user-scoped retrieval filters ensuring zero data leakage.
-- **Conversational Memory**: Dual-layer memory (Short-term context + Long-term semantic facts) managed via LangGraph namespaces.
-- **Traceability**: Real-time relevance scoring and engine attribution for every cited response.
+## Main Flows
 
----
+### Ingestion
 
-## 💎 Core Features
+```mermaid
+flowchart TD
+  Input["File / URL / Note / Audio"] --> Router["/api/v1/ingest"]
+  Router --> Job["IngestionJob"]
+  Job --> Worker["Celery worker"]
+  Worker --> Parse["Parse or transcribe"]
+  Parse --> Chunk["Chunk text"]
+  Chunk --> Embed["Generate embeddings"]
+  Embed --> Store["Postgres + pgvector + Qdrant"]
+  Store --> Library["Library + Search + Chat"]
+```
 
-- **Executive 3-Panel Interface**: Sidebar navigation, high-density chat area, and an interactive traceability panel.
-- **Universal Ingest**: Native support for PDF, DOCX, Markdown, Text, and Web URLs.
-- **Cited Intelligence**: AI responses include interactive markers linked directly to source fragments.
-- **Versioning & Audit**: Full history of document versions and status management (Active, Archive, Trash).
-- **Admin Observability**: Comprehensive dashboard for prompt management, ingestion job monitoring, and memory rule tuning.
+### Chat and Retrieval
 
----
+```mermaid
+flowchart TD
+  Query["User query"] --> Embed["Embed query"]
+  Embed --> Retrieve["Hybrid retrieval"]
+  Retrieve --> Trim["Security trimming"]
+  Trim --> Rerank["LLM rerank"]
+  Rerank --> Answer["Generate cited answer"]
+  Answer --> Persist["Persist conversation + telemetry"]
+  Persist --> Source["Open linked chunk/source"]
+```
 
-## 🚀 Getting Started
+## Stack
+
+- Frontend: Next.js, TypeScript, Tailwind CSS
+- Backend: FastAPI, SQLAlchemy Async
+- Orchestration: LangGraph
+- Canonical DB: PostgreSQL
+- Vector layer: pgvector + Qdrant
+- Async jobs: Celery + Redis
+- Infra: Docker Compose
+
+## Repository Layout
+
+- `frontend/`: Next.js application.
+- `backend/`: FastAPI API, retrieval, ingestion and worker code.
+- `scripts/`: workspace quality gate scripts.
+- `.github/workflows/quality-gate.yml`: CI workflow.
+- `00-ARQUITECTURA-PROYECTO.md`: technical architecture decision record.
+- `02-ARQUITECTURA-SITIO.md`: page and component map.
+- `MATRIZ-BACKEND.md`: integration matrix.
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and set at least:
+
+- `DATABASE_URL`
+- `REDIS_URL`
+- `QDRANT_URL`
+- `QDRANT_API_KEY`
+- `SECRET_KEY`
+- `OPENAI_API_KEY`
+- `LLM_PRIMARY_MODEL`
+- `LLM_ROUTING_MODEL`
+- `EMBEDDING_MODEL`
+- `RETRIEVAL_BACKEND`
+- `NEXT_PUBLIC_API_URL`
+
+## Local Setup
 
 ### Prerequisites
-- Docker & Docker Compose
-- OpenAI API Key (or local LLM provider)
 
-### Setup
-1. Clone the repository.
-2. Create a `.env` file based on `.env.example`.
-3. Launch the stack:
-   ```bash
-   docker compose up -d
-   ```
-4. Access the platform:
-   - **Frontend**: http://localhost:3000
-   - **API Docs**: http://localhost:8000/docs
+- Python 3.12
+- Node.js 20+
+- Docker and Docker Compose
 
----
+### Start with Docker
 
-## 🛠 Tech Stack
+```bash
+docker compose up -d --build
+```
 
-- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui.
-- **Backend**: FastAPI (Python 3.12), SQLAlchemy (Async), Celery.
-- **Intelligence**: LangGraph, LangChain, OpenAI GPT-4o / whisper-1.
-- **Storage**: PostgreSQL (pgvector), Qdrant, Redis.
+Services:
 
----
+- Frontend: `http://localhost:3000`
+- Backend docs: `http://localhost:8000/docs`
+- Qdrant: `http://localhost:6333`
 
-## 🔒 Security & Compliance
-- **JWT Authentication**: Secure session management with refresh tokens.
-- **Owner Isolation**: Strict database-level isolation of all document chunks and memories.
-- **Audit Logs**: Traceability of all destructive actions and sensitive queries.
+### Frontend only
 
----
-Produced for the **KnowBase-AI Certification Phase**.
-*Status: Ready for Production Handover.*
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Backend only
+
+```bash
+cd backend
+pip install -e .
+uvicorn app.main:app --reload
+```
+
+## Quality Gate
+
+Workspace scripts:
+
+```bash
+npm run check
+npm run test
+npm run test:smoke
+```
+
+What they do:
+
+- `check`: backend compile check and frontend lint when dependencies are installed.
+- `test`: verifies required project files exist and are readable.
+- `test:smoke`: validates core product markers such as note ingestion, chunk navigation and filtered search support.
+
+## Current Evidence
+
+- `frontend/app/(app)/chat/page.tsx`: chat UI with citations and source navigation.
+- `frontend/app/(app)/library/[documentId]/page.tsx`: document view with linked chunk focus.
+- `backend/app/api/routers/ingest.py`: file, URL and note ingestion entrypoints.
+- `backend/app/api/routers/search.py`: hybrid search with collection, date and tag filters.
+- `backend/app/api/routers/chat.py`: persistent streaming chat with feedback and telemetry.
+- `backend/app/api/routers/admin.py`: job status and retrieval config.
+
+## Screenshots
+
+Real screenshots still need to be captured from a running local build and attached to this README. The code paths and pages above are the current implementation targets for those captures.

@@ -1,18 +1,19 @@
 """
 pgvector store — insert and similarity search using SQLAlchemy + pgvector.
 """
-import uuid
-from typing import List, Optional
+from __future__ import annotations
 
-from sqlalchemy import select, text
+import uuid
+from datetime import datetime
+from typing import Iterable, Optional
+
+from sqlalchemy import exists, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.models.document import Chunk, DocumentStatus
+from app.models.document import Chunk, Document, DocumentStatus, Tag, document_tags
 
 
-async def upsert_chunks(db: AsyncSession, chunks: List[Chunk]) -> None:
-    """Bulk insert or update chunks in the DB."""
+async def upsert_chunks(db: AsyncSession, chunks: list[Chunk]) -> None:
     for chunk in chunks:
         db.add(chunk)
     await db.commit()
@@ -20,56 +21,68 @@ async def upsert_chunks(db: AsyncSession, chunks: List[Chunk]) -> None:
 
 async def similarity_search(
     db: AsyncSession,
-    query_embedding: List[float],
-    owner_id: uuid.UUID,
+    query_embedding: list[float],
+    user_id: uuid.UUID,
+    accessible_collection_ids: Optional[list[uuid.UUID]] = None,
     top_k: int = 20,
     collection_id: Optional[uuid.UUID] = None,
     document_id: Optional[uuid.UUID] = None,
-) -> List[dict]:
-    """
-    Cosine similarity search over pgvector embeddings.
-    Filters by owner (security trimming) + optional collection/document scope.
-    Returns list of chunk dicts with score.
-    """
-    # Build filter conditions
-    filter_clauses = ["c.owner_id = :owner_id", "c.embedding IS NOT NULL", "d.status = :active_status"]
-    params: dict = {
-        "owner_id": str(owner_id),
-        "top_k": top_k,
-        "embedding": query_embedding,
-        "active_status": DocumentStatus.ACTIVE.value
-    }
+    tags: Optional[Iterable[str]] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    source_type: Optional[str] = None,
+) -> list[dict]:
+    normalized_tags = [tag.strip().lower() for tag in (tags or []) if tag.strip()]
+    accessible_collection_ids = accessible_collection_ids or []
+
+    distance = Chunk.embedding.cosine_distance(query_embedding)
+    query = (
+        select(
+            Chunk.id,
+            Chunk.document_id,
+            Chunk.text,
+            Chunk.chunk_index,
+            Chunk.page_number,
+            Chunk.section_title,
+            Chunk.char_start,
+            Chunk.char_end,
+            Document.title.label("doc_title"),
+            Document.source_type,
+            Document.source_url,
+            (1 - distance).label("score"),
+        )
+        .join(Document, Document.id == Chunk.document_id)
+        .where(
+            Chunk.embedding.is_not(None),
+            Document.status == DocumentStatus.ACTIVE,
+            or_(
+                Document.owner_id == user_id,
+                Document.collection_id.in_(accessible_collection_ids) if accessible_collection_ids else false(),
+            ),
+        )
+    )
 
     if collection_id:
-        filter_clauses.append("d.collection_id = :collection_id")
-        params["collection_id"] = str(collection_id)
+        query = query.where(Document.collection_id == collection_id)
     if document_id:
-        filter_clauses.append("c.document_id = :document_id")
-        params["document_id"] = str(document_id)
+        query = query.where(Chunk.document_id == document_id)
+    if date_from:
+        query = query.where(Document.created_at >= date_from)
+    if date_to:
+        query = query.where(Document.created_at <= date_to)
+    if source_type:
+        query = query.where(Document.source_type == source_type)
+    if normalized_tags:
+        tag_match = exists(
+            select(1)
+            .select_from(document_tags.join(Tag, Tag.id == document_tags.c.tag_id))
+            .where(
+                document_tags.c.document_id == Document.id,
+                func.lower(Tag.name).in_(normalized_tags),
+            )
+        )
+        query = query.where(tag_match)
 
-    where = " AND ".join(filter_clauses)
-
-    sql = text(f"""
-        SELECT
-            c.id,
-            c.document_id,
-            c.text,
-            c.chunk_index,
-            c.page_number,
-            c.section_title,
-            c.char_start,
-            c.char_end,
-            d.title AS doc_title,
-            d.source_type,
-            d.source_url,
-            1 - (c.embedding <=> CAST(:embedding AS vector)) AS score
-        FROM chunks c
-        JOIN documents d ON d.id = c.document_id
-        WHERE {where}
-        ORDER BY c.embedding <=> CAST(:embedding AS vector)
-        LIMIT :top_k
-    """)
-
-    result = await db.execute(sql, params)
-    rows = result.mappings().all()
-    return [dict(r) for r in rows]
+    query = query.order_by(distance).limit(top_k)
+    result = await db.execute(query)
+    return [dict(row._mapping) for row in result.all()]

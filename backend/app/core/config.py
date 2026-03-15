@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # ── Retrieval ────────────────────────────────────────────────────────────
     RETRIEVAL_TOP_K: int = 20
     RERANK_TOP_K: int = 6
-    RETRIEVAL_BACKEND: str = "pgvector"  # pgvector | qdrant | hybrid
+    RETRIEVAL_BACKEND: str = "hybrid"  # pgvector | qdrant | hybrid
 
     # ── Phase 3: Embeddings ──────────────────────────────────────────────────
     EMBEDDING_BACKEND: str = "openai"          # openai | fastembed

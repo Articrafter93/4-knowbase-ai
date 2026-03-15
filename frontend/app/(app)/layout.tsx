@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const navItems = [
   { label: 'Library',       href: '/library',       icon: '⬡' },
@@ -18,6 +18,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setIsCompact(window.innerWidth < 1180);
+      setIsMobile(window.innerWidth < 900);
+      if (window.innerWidth < 1180) {
+        setCollapsed(true);
+      }
+    };
+
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    return () => window.removeEventListener('resize', syncViewport);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('kb_access_token');
@@ -26,13 +42,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)', flexDirection: isMobile ? 'column' : 'row' }}>
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       <aside style={{
-        width: collapsed ? '64px' : '240px',
-        minWidth: collapsed ? '64px' : '240px',
+        width: isMobile ? '100%' : collapsed ? '64px' : '240px',
+        minWidth: isMobile ? '100%' : collapsed ? '64px' : '240px',
         background: 'var(--surface)',
-        borderRight: '1px solid var(--border)',
+        borderRight: isMobile ? 'none' : '1px solid var(--border)',
+        borderBottom: isMobile ? '1px solid var(--border)' : 'none',
         display: 'flex',
         flexDirection: 'column',
         transition: 'width 240ms cubic-bezier(0.4,0,0.2,1), min-width 240ms cubic-bezier(0.4,0,0.2,1)',
@@ -47,7 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           alignItems: 'center',
           gap: '10px',
           cursor: 'pointer',
-          justifyContent: collapsed ? 'center' : 'flex-start',
+          justifyContent: isMobile ? 'space-between' : collapsed ? 'center' : 'flex-start',
         }} onClick={() => setCollapsed(!collapsed)}>
           <div style={{
             width: '32px', height: '32px', minWidth: '32px',
@@ -58,11 +75,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
             </svg>
           </div>
-          {!collapsed && <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em' }}>KnowBase</span>}
+          {(!collapsed || isMobile) && <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em' }}>KnowBase</span>}
         </div>
 
         {/* Nav items */}
-        <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: '2px', overflowX: isMobile ? 'auto' : 'visible' }}>
           {navItems.map(({ label, href, icon }) => {
             const active = pathname?.startsWith(href);
             return (
@@ -71,25 +88,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 padding: collapsed ? '10px 0' : '9px 12px',
                 borderRadius: 'var(--radius-md)',
                 textDecoration: 'none',
-                justifyContent: collapsed ? 'center' : 'flex-start',
+                justifyContent: isMobile ? 'center' : collapsed ? 'center' : 'flex-start',
                 background: active ? 'var(--accent-dim)' : 'transparent',
                 color: active ? 'var(--accent)' : 'var(--text-muted)',
                 fontWeight: active ? 600 : 400,
                 fontSize: '0.9rem',
                 transition: 'background var(--transition), color var(--transition)',
+                minWidth: isMobile ? '120px' : undefined,
               }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)'; }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
               >
                 <span style={{ fontSize: label === 'Upload' ? '1.2rem' : '1rem', lineHeight: 1 }}>{icon}</span>
-                {!collapsed && <span>{label}</span>}
+                {(!collapsed || isMobile) && <span>{label}</span>}
               </Link>
             );
           })}
         </nav>
 
         {/* Bottom actions */}
-        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--border)', display: isMobile ? 'none' : 'block' }}>
           <Link href="/settings" style={{
             display: 'flex', alignItems: 'center', gap: '10px', justifyContent: collapsed ? 'center' : 'flex-start',
             padding: collapsed ? '10px 0' : '9px 12px', borderRadius: 'var(--radius-md)',
@@ -108,16 +126,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ── Main content ────────────────────────────────────────────────── */}
-      <main style={{ flex: 1, overflow: 'auto', position: 'relative', borderRight: '1px solid var(--border)' }} className="fade-rise">
+      <main style={{ flex: 1, overflow: 'auto', position: 'relative', borderRight: isMobile ? 'none' : '1px solid var(--border)' }} className="fade-rise">
         {children}
       </main>
 
       {/* ── Right Panel (Traceability & Context) ─────────────────────────── */}
       <aside style={{
-        width: '320px',
-        minWidth: '320px',
+        width: isCompact ? '280px' : '320px',
+        minWidth: isCompact ? '280px' : '320px',
         background: 'var(--bg)',
-        display: 'flex',
+        display: isMobile ? 'none' : 'flex',
         flexDirection: 'column',
         zIndex: 10,
         overflowY: 'auto',

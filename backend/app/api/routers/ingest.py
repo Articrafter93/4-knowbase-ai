@@ -1,19 +1,17 @@
 """
-Ingest router — upload files, submit URLs, check job status.
+Ingest router — upload files, notes, URLs and check job status.
 """
-import os
-import shutil
 import uuid
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile, status
-from pydantic import BaseModel, HttpUrl
-from sqlalchemy import select
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.deps import CurrentUser, DB
 from app.models.document import Document, DocumentStatus, IngestionJob, SourceType
+from app.services.documents import assign_tags_to_document, normalize_tags
 
 router = APIRouter()
 
@@ -23,7 +21,15 @@ class URLIngestRequest(BaseModel):
     title: Optional[str] = None
     collection_id: Optional[uuid.UUID] = None
     parent_id: Optional[uuid.UUID] = None
-    tags: Optional[list[str]] = []
+    tags: list[str] = []
+
+
+class NoteIngestRequest(BaseModel):
+    title: str
+    content: str
+    collection_id: Optional[uuid.UUID] = None
+    parent_id: Optional[uuid.UUID] = None
+    tags: list[str] = []
 
 
 class IngestResponse(BaseModel):
@@ -48,8 +54,9 @@ async def ingest_file(
     collection_id: Optional[str] = Form(None),
     parent_id: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
 ):
-    """Upload a file for ingestion (PDF, DOCX, TXT, MD, image)."""
+    """Upload a file for ingestion (PDF, DOCX, TXT, MD, image, audio)."""
     max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
     file_content = await file.read()
     if len(file_content) > max_bytes:
@@ -66,7 +73,10 @@ async def ingest_file(
     # Detect source type
     ext_map = {".pdf": SourceType.PDF, ".docx": SourceType.DOCX, ".txt": SourceType.TXT,
                ".md": SourceType.MARKDOWN, ".markdown": SourceType.MARKDOWN,
-               ".png": SourceType.IMAGE, ".jpg": SourceType.IMAGE, ".jpeg": SourceType.IMAGE}
+               ".png": SourceType.IMAGE, ".jpg": SourceType.IMAGE, ".jpeg": SourceType.IMAGE,
+               ".mp3": SourceType.AUDIO, ".mp4": SourceType.AUDIO, ".m4a": SourceType.AUDIO,
+               ".wav": SourceType.AUDIO, ".webm": SourceType.AUDIO, ".ogg": SourceType.AUDIO,
+               ".flac": SourceType.AUDIO}
     source_type = ext_map.get(suffix, SourceType.TXT)
 
     col_id = uuid.UUID(collection_id) if collection_id else None
@@ -92,6 +102,7 @@ async def ingest_file(
     )
     db.add(doc)
     await db.flush()
+    await assign_tags_to_document(db, doc, current_user.id, normalize_tags((tags or "").split(",")))
 
     job = IngestionJob(document_id=doc.id, owner_id=current_user.id)
     db.add(job)
@@ -126,9 +137,11 @@ async def ingest_url(
         source_type=SourceType.URL,
         source_url=body.url,
         status=DocumentStatus.ACTIVE,
+        doc_metadata={"tags": normalize_tags(body.tags)},
     )
     db.add(doc)
     await db.flush()
+    await assign_tags_to_document(db, doc, current_user.id, body.tags)
     job = IngestionJob(document_id=doc.id, owner_id=current_user.id)
     db.add(job)
     await db.commit()
@@ -142,6 +155,49 @@ async def ingest_url(
         job_id=str(job.id),
         status="queued",
         message="URL queued for ingestion",
+    )
+
+
+@router.post("/note", response_model=IngestResponse, status_code=status.HTTP_202_ACCEPTED)
+async def ingest_note(
+    body: NoteIngestRequest,
+    current_user: CurrentUser,
+    db: DB,
+    background_tasks: BackgroundTasks,
+):
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Note content cannot be empty")
+
+    doc = Document(
+        owner_id=current_user.id,
+        collection_id=body.collection_id,
+        parent_id=body.parent_id,
+        title=body.title.strip() or "Untitled note",
+        source_type=SourceType.NOTE,
+        status=DocumentStatus.ACTIVE,
+        doc_metadata={
+            "note_content": content,
+            "tags": normalize_tags(body.tags),
+        },
+    )
+    db.add(doc)
+    await db.flush()
+    await assign_tags_to_document(db, doc, current_user.id, body.tags)
+
+    job = IngestionJob(document_id=doc.id, owner_id=current_user.id)
+    db.add(job)
+    await db.commit()
+    await db.refresh(doc)
+    await db.refresh(job)
+
+    background_tasks.add_task(_enqueue_job, doc.id, job.id)
+
+    return IngestResponse(
+        document_id=str(doc.id),
+        job_id=str(job.id),
+        status="queued",
+        message="Note queued for ingestion",
     )
 
 

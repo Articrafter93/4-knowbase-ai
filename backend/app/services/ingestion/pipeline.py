@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.document import Chunk, Document, DocumentStatus, IngestionJob
 from app.services.embeddings.provider import embed_texts
+from app.services.ingestion.audio import transcribe_audio
 from app.services.ingestion.chunker import chunk_text
 from app.services.ingestion.parsers import parse_file, parse_url
-from app.services.vector_store.pgvector_store import upsert_chunks
 
 log = structlog.get_logger()
 
@@ -50,6 +50,18 @@ async def run_ingestion_pipeline(
 
         if doc.source_type.value == "url" and doc.source_url:
             text, metadata = await parse_url(doc.source_url)
+        elif doc.source_type.value == "note":
+            metadata = doc.doc_metadata or {}
+            text = (metadata.get("note_content") or "").strip()
+            if not text:
+                raise ValueError("Note documents require note_content in doc_metadata")
+        elif doc.source_type.value == "audio" and doc.file_path:
+            audio_result = await transcribe_audio(doc.file_path)
+            text = audio_result["text"]
+            metadata = {
+                **audio_result,
+                "tags": [tag.name for tag in doc.tags],
+            }
         elif doc.file_path:
             text, metadata = parse_file(doc.file_path, doc.mime_type)
         else:
@@ -58,6 +70,11 @@ async def run_ingestion_pipeline(
         # Update title from parsed metadata if not set
         if metadata.get("title") and doc.title in ("", "Untitled"):
             doc.title = metadata["title"][:500]
+        doc.doc_metadata = {
+            **(doc.doc_metadata or {}),
+            **metadata,
+            "tags": [tag.name for tag in doc.tags],
+        }
 
         # ── 2. Chunk ──────────────────────────────────────────────────────────
         job.status = "chunking"
@@ -112,14 +129,16 @@ async def run_ingestion_pipeline(
                         status="active",
                         text=chunk.text,
                         dense_embedding=embedding,
-                        metadata={
-                            "doc_title": doc.title,
-                            "source_type": doc.source_type,
-                            "page_number": chunk.page_number,
-                            "section_title": chunk.section_title,
-                            "source_url": doc.source_url,
-                        },
-                    )
+                metadata={
+                    "doc_title": doc.title,
+                    "source_type": doc.source_type,
+                    "page_number": chunk.page_number,
+                    "section_title": chunk.section_title,
+                    "source_url": doc.source_url,
+                    "created_at": doc.created_at.isoformat(),
+                    "tags": [tag.name for tag in doc.tags],
+                },
+            )
                 log.info("Qdrant dual-write complete", chunks=len(chunk_objs))
             except Exception as exc:
                 log.warning("Qdrant dual-write failed (pgvector OK)", error=str(exc))
@@ -142,4 +161,3 @@ async def run_ingestion_pipeline(
         job.error_message = str(exc)
         await db.commit()
         raise
-

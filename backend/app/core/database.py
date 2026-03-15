@@ -28,7 +28,7 @@ class Base(DeclarativeBase):
 
 async def create_db_and_tables() -> None:
     """Create tables on startup (dev only; use Alembic for prod)."""
-    from app.models import user, document, memory, conversation, audit  # noqa: F401
+    from app.models import conversation, document, memory, permission, smart_folder, user  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

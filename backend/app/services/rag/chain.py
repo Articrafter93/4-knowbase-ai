@@ -5,6 +5,7 @@ Nodes: route_intent → retrieve_chunks → retrieve_memories → rerank → bui
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any, Optional
 
 import structlog
@@ -17,6 +18,7 @@ from app.services.embeddings.provider import embed_query
 from app.services.retrieval.hybrid import retrieve_hybrid
 from app.services.retrieval.reranker import llm_rerank
 from app.services.memory.store import semantic_memory_search
+from app.services.security.trimming import get_accessible_collection_ids
 
 log = structlog.get_logger()
 
@@ -41,8 +43,12 @@ class RAGState(TypedDict):
     query: str
     user_id: str
     collection_id: Optional[str]
+    date_from: Optional[datetime]
+    date_to: Optional[datetime]
+    tags: list[str]
     db_session: Any
     conversation_id: Optional[str]
+    top_k: int
     # Pipeline
     intent: str
     query_embedding: Optional[list]
@@ -76,12 +82,20 @@ async def retrieve_chunks(state: RAGState) -> RAGState:
 
     db = state["db_session"]
     collection_id = uuid.UUID(state["collection_id"]) if state.get("collection_id") else None
+    accessible_collection_ids = await get_accessible_collection_ids(
+        db=db,
+        user_id=uuid.UUID(state["user_id"]),
+    )
     chunks = await retrieve_hybrid(
         db=db,
         query_embedding=embedding,
-        owner_id=uuid.UUID(state["user_id"]),
-        top_k=settings.RETRIEVAL_TOP_K,
+        user_id=uuid.UUID(state["user_id"]),
+        accessible_collection_ids=accessible_collection_ids,
+        top_k=state.get("top_k") or settings.RETRIEVAL_TOP_K,
         collection_id=collection_id,
+        tags=state.get("tags") or None,
+        date_from=state.get("date_from"),
+        date_to=state.get("date_to"),
     )
     state["retrieved_chunks"] = chunks
     log.debug("Hybrid retrieval", count=len(chunks), backend=settings.RETRIEVAL_BACKEND)
@@ -244,14 +258,22 @@ async def run_rag(
     db_session: Any,
     collection_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    top_k: Optional[int] = None,
 ) -> dict:
     """Execute the full RAG pipeline (Phase 2: hybrid + memory + reranker + extraction)."""
     initial_state: RAGState = {
         "query": query,
         "user_id": user_id,
         "collection_id": collection_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "tags": tags or [],
         "conversation_id": conversation_id,
         "db_session": db_session,
+        "top_k": top_k or settings.RETRIEVAL_TOP_K,
         "intent": "",
         "query_embedding": None,
         "retrieved_chunks": [],

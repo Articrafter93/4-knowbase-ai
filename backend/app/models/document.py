@@ -8,7 +8,7 @@ from enum import Enum
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean, DateTime, Float, ForeignKey,
-    Integer, String, Table, Text, Column
+    Integer, String, Table, Text, Column, Enum as SAEnum
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,6 +27,8 @@ document_tags = Table(
 # ── Phase 4: Enums ────────────────────────────────────────────────────────────
 class DocumentStatus(str, Enum):
     ACTIVE = "active"
+    PROCESSING = "processing"
+    FAILED = "failed"
     ARCHIVED = "archived"
     TRASHED = "trashed"
 
@@ -86,7 +88,7 @@ class Document(Base):
     file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[DocumentStatus] = mapped_column(
-        Enum(DocumentStatus, name="document_status"),
+        SAEnum(DocumentStatus, name="document_status"),
         default=DocumentStatus.ACTIVE,
         nullable=False,
     )
