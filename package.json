@@ -1,0 +1,9 @@
+{
+  "name": "knowbase-workspace",
+  "private": true,
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node scripts/test.mjs",
+    "test:smoke": "node scripts/test-smoke.mjs"
+  }
+}

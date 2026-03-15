@@ -14,7 +14,7 @@ export default function KnowledgePage() {
     ]).then(([d, s]) => { setDocs(d.slice(0, 8)); setStats(s); }).finally(() => setLoading(false));
   }, []);
 
-  const statusColor: Record<string, string> = { indexed: 'var(--accent2)', processing: 'var(--warn)', failed: 'var(--error)', pending: 'var(--text-subtle)' };
+  const statusColor: Record<string, string> = { active: 'var(--accent2)', processing: 'var(--warn)', failed: 'var(--error)', archived: 'var(--text-subtle)' };
 
   return (
     <div className="fade-rise" style={{ padding: '36px 36px' }}>

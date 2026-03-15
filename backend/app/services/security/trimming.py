@@ -97,13 +97,16 @@ async def filter_documents_for_user(
     By default, also filters out TRASHED and ARCHIVED documents (Phase 4).
     """
     accessible_ids = await get_accessible_collection_ids(db, user_id)
-    
-    query = base_query.where(
-        or_(
-            Document.owner_id == user_id,
-            Document.collection_id.in_(accessible_ids),
+
+    if accessible_ids:
+        query = base_query.where(
+            or_(
+                Document.owner_id == user_id,
+                Document.collection_id.in_(accessible_ids),
+            )
         )
-    )
+    else:
+        query = base_query.where(Document.owner_id == user_id)
 
     if not include_trashed:
         query = query.where(Document.status != DocumentStatus.TRASHED)

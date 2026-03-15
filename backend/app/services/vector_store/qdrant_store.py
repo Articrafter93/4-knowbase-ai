@@ -1,8 +1,7 @@
 """
-Qdrant vector store — dense + sparse (BM25) hybrid retrieval with RRF fusion.
-Phase 2: activated when RETRIEVAL_BACKEND=qdrant or hybrid.
+Qdrant vector store — dense retrieval with payload filters and hybrid-ready shape.
 """
-import uuid
+from datetime import datetime
 from typing import List, Optional
 
 import structlog
@@ -108,6 +107,11 @@ async def hybrid_search(
     owner_id: str,
     top_k: int = 20,
     collection_id: Optional[str] = None,
+    accessible_collection_ids: Optional[list[str]] = None,
+    tags: Optional[list[str]] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    source_type: Optional[str] = None,
 ) -> List[dict]:
     """
     Hybrid retrieval: dense vector search in Qdrant.
@@ -117,16 +121,34 @@ async def hybrid_search(
     client = get_qdrant_client()
 
     # Build filter: always scope to owner and Active status
-    must_conditions = [
-        FieldCondition(key="owner_id", match=MatchValue(value=owner_id)),
-        FieldCondition(key="status", match=MatchValue(value="active"))
-    ]
+    must_conditions = [FieldCondition(key="status", match=MatchValue(value="active"))]
+    should_conditions = [FieldCondition(key="owner_id", match=MatchValue(value=owner_id))]
+
     if collection_id:
-        must_conditions.append(
-            FieldCondition(key="collection_id", match=MatchValue(value=collection_id))
+        must_conditions.append(FieldCondition(key="collection_id", match=MatchValue(value=collection_id)))
+    elif accessible_collection_ids:
+        should_conditions.extend(
+            FieldCondition(key="collection_id", match=MatchValue(value=item))
+            for item in accessible_collection_ids
+            if item
         )
 
-    search_filter = Filter(must=must_conditions)
+    if source_type:
+        must_conditions.append(FieldCondition(key="source_type", match=MatchValue(value=source_type)))
+
+    if tags:
+        for tag in tags:
+            must_conditions.append(FieldCondition(key="tags[]", match=MatchValue(value=tag)))
+
+    if date_from or date_to:
+        log.info("Qdrant date filters requested; enforcing via pgvector fallback only")
+        return []
+
+    search_filter = Filter(
+        must=must_conditions,
+        should=should_conditions,
+        min_should=1,
+    )
 
     results = await client.search(
         collection_name=settings.QDRANT_COLLECTION,

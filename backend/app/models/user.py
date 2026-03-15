@@ -45,6 +45,7 @@ class User(Base):
     documents: Mapped[list["Document"]] = relationship(back_populates="owner", lazy="select")
     memories: Mapped[list["Memory"]] = relationship(back_populates="user", lazy="select")
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="user", lazy="select")
+    smart_folders: Mapped[list["SmartFolder"]] = relationship(back_populates="user", lazy="select")
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
@@ -54,3 +55,4 @@ class User(Base):
 from app.models.document import Collection, Document  # noqa: E402, F401
 from app.models.memory import Memory  # noqa: E402, F401
 from app.models.conversation import Conversation  # noqa: E402, F401
+from app.models.smart_folder import SmartFolder  # noqa: E402, F401

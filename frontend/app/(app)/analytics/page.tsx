@@ -36,18 +36,10 @@ export default function AnalyticsPage() {
     setLoading(true);
     Promise.all([
       admin.getStats(),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/admin/analytics/queries?days=${days}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('kb_access_token')}` }
-      }).then(r => r.json()),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/admin/analytics/top-documents`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('kb_access_token')}` }
-      }).then(r => r.json()),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/admin/analytics/retrieval-failures?limit=10`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('kb_access_token')}` }
-      }).then(r => r.json()),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/admin/analytics/index-health`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('kb_access_token')}` }
-      }).then(r => r.json()),
+      admin.getQueryAnalytics(days),
+      admin.getTopDocuments(),
+      admin.getRetrievalFailures(10),
+      admin.getIndexHealth(),
     ])
       .then(([_stats, qs, docs, fails, h]) => {
         setQueryStats(qs);
