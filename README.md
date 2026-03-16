@@ -178,6 +178,7 @@ Example closure evidence:
 
 ## Current Evidence
 
+- `EVIDENCE.md`: full functional-pass proof with commands, API outputs, logs and screenshots.
 - `frontend/app/(app)/chat/page.tsx`: chat UI with citations and source navigation.
 - `frontend/app/(app)/library/[documentId]/page.tsx`: document view with linked chunk focus.
 - `backend/app/api/routers/ingest.py`: file, URL and note ingestion entrypoints.
@@ -187,4 +188,8 @@ Example closure evidence:
 
 ## Screenshots
 
-Real screenshots still need to be captured from a running local build and attached to this README. The code paths and pages above are the current implementation targets for those captures.
+- `evidence/functional-pass/screenshot-1-sidebar-library.png`
+- `evidence/functional-pass/screenshot-2-chat-citation.png`
+- `evidence/functional-pass/screenshot-3-document-highlight.png`
+
+See `EVIDENCE.md` for the full closure trail (`/health`, ingest `202`, job `completed`, library presence, cited chat response, chunk navigation, `npm run check`, `npm run test:smoke`, and frontend production build).
