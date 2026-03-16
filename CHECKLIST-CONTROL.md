@@ -11,10 +11,14 @@
 - [x] Pasada funcional obligatoria definida como gate de cierre para cualquier agente.
 
 ## Pendiente
-- [ ] Validar screenshots reales del producto en ejecución.
-- [ ] Ejecutar build frontend completo con dependencias instaladas.
-- [ ] Ejecutar smoke real contra entorno levantado.
-- [ ] Exigir evidencia de pasada funcional en cada cierre futuro.
+- [x] Validar screenshots reales del producto en ejecución.
+- [x] Ejecutar build frontend completo con dependencias instaladas.
+- [x] Ejecutar smoke real contra entorno levantado.
+- [x] Exigir evidencia de pasada funcional en cada cierre futuro.
+
+## Evidencia de cierre
+- [x] `EVIDENCE.md` agregado con trazabilidad completa.
+- [x] Artefactos en `evidence/functional-pass/` (API run, logs, screenshots, docker ps).
 
 ## GATEs
 - [x] GATE -1
@@ -29,5 +33,5 @@
 - [x] GATE 8
 - [x] GATE 8.5
 - [x] GATE 8.7 - Functional pass obligatorio
-- [ ] GATE 9
-- [ ] GATE 10
+- [x] GATE 9
+- [x] GATE 10

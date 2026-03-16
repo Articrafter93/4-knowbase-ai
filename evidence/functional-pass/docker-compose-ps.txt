@@ -1,0 +1,7 @@
+NAME                IMAGE                                                COMMAND                  SERVICE    CREATED          STATUS                       PORTS
+knowbase_backend    4-basedeconocimientopersonalmejoradaconia-backend    "uvicorn app.main:ap…"   backend    10 minutes ago   Up 10 minutes (healthy)      0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+knowbase_frontend   4-basedeconocimientopersonalmejoradaconia-frontend   "docker-entrypoint.s…"   frontend   10 minutes ago   Up 10 minutes                0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+knowbase_postgres   pgvector/pgvector:pg16                               "docker-entrypoint.s…"   postgres   37 hours ago     Up About an hour (healthy)   0.0.0.0:5433->5432/tcp, [::]:5433->5432/tcp
+knowbase_qdrant     qdrant/qdrant:v1.9.2                                 "./entrypoint.sh"        qdrant     37 hours ago     Up About an hour (healthy)   0.0.0.0:6333-6334->6333-6334/tcp, [::]:6333-6334->6333-6334/tcp
+knowbase_redis      redis:7.2-alpine                                     "docker-entrypoint.s…"   redis      39 hours ago     Up About an hour (healthy)   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+knowbase_worker     4-basedeconocimientopersonalmejoradaconia-worker     "celery -A app.worke…"   worker     10 minutes ago   Up 10 minutes                8000/tcp

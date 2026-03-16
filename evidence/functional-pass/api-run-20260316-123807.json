@@ -1,0 +1,108 @@
+{
+  "run_id": "20260316-123807",
+  "generated_at": "2026-03-16T12:38:10.8224943-05:00",
+  "credentials": {
+    "password": "<redacted>",
+    "email": "e2e.20260316-123807@gmail.com",
+    "full_name": "E2E Evidence User"
+  },
+  "health": {
+    "body": {
+      "status": "ok",
+      "service": "knowbase-backend",
+      "version": "0.3.0"
+    },
+    "status_code": 200
+  },
+  "ingest": {
+    "response": {
+      "document_id": "8a4825a8-f412-4ffb-9e5c-54b897312ba2",
+      "job_id": "93660e1e-2cdb-49fc-b58b-b60b8e1011db",
+      "status": "queued",
+      "message": "Note queued for ingestion"
+    },
+    "status_code": 202
+  },
+  "job": {
+    "admin_job": {
+      "id": "93660e1e-2cdb-49fc-b58b-b60b8e1011db",
+      "document_id": "8a4825a8-f412-4ffb-9e5c-54b897312ba2",
+      "status": "completed",
+      "progress": 100,
+      "error_message": null,
+      "created_at": "2026-03-16T12:38:08.091517-05:00"
+    },
+    "final_status": "completed",
+    "timeline": [
+      {
+        "at": "2026-03-16T12:38:10.4789694-05:00",
+        "status": "completed",
+        "progress": 100,
+        "error": null
+      }
+    ]
+  },
+  "library": {
+    "document": {
+      "id": "8a4825a8-f412-4ffb-9e5c-54b897312ba2",
+      "title": "Evidence Note 20260316-123807",
+      "source_type": "note",
+      "source_url": null,
+      "status": "active",
+      "is_favorite": false,
+      "version": 1,
+      "parent_id": null,
+      "chunk_count": 1,
+      "word_count": 22,
+      "doc_metadata": {
+        "tags": [
+          "evidence",
+          "smoke",
+          "helix"
+        ],
+        "note_content": "KnowBase functional pass run 20260316-123807. Mandatory phrase: Helix Budget 2026 approved amount is 1.2M COP for phase alpha. Source anchor token: EVIDENCE-20260316-123807."
+      },
+      "collection_id": null,
+      "tags": [
+        "evidence",
+        "smoke",
+        "helix"
+      ],
+      "created_at": "2026-03-16T12:38:08.074577-05:00",
+      "updated_at": "2026-03-16T12:38:09.846883-05:00",
+      "indexed_at": "2026-03-16T12:38:09.846317-05:00"
+    },
+    "first_chunk_id": "b5973371-7914-4dd8-ab67-a3730a24d30f",
+    "chunk_count": 1,
+    "document_found": true
+  },
+  "chat": {
+    "done": {
+      "type": "done",
+      "conversation_id": "7f5a22a2-78c7-4a6c-9fff-6c6064594f29",
+      "message_id": "ba3bbdb6-9d02-4a1b-94c0-09d710ffa056",
+      "retrieval_metadata": {
+        "intent": "search",
+        "chunk_count": 1,
+        "backend": "pgvector"
+      },
+      "latency_ms": 80
+    },
+    "citation_count": 1,
+    "answer": "Based on your knowledge base: - KnowBase functional pass run 20260316-123807. Mandatory phrase: Helix Budget 2026 approved amount is 1.2M COP for phase alpha. Source anchor token: EVIDENCE-20260316-123807. [SOURCE 1]",
+    "citations": [
+      {
+        "marker": "[SOURCE 1]",
+        "source_index": 0,
+        "chunk_id": "b5973371-7914-4dd8-ab67-a3730a24d30f",
+        "document_id": "8a4825a8-f412-4ffb-9e5c-54b897312ba2",
+        "doc_title": "Evidence Note 20260316-123807",
+        "page_number": null,
+        "section_title": null,
+        "fragment": "KnowBase functional pass run 20260316-123807. Mandatory phrase: Helix Budget 2026 approved amount is 1.2M COP for phase alpha. Source anchor token: EVIDENCE-20260316-123807.",
+        "score": 0.4174468517303467,
+        "source_url": null
+      }
+    ]
+  }
+}
