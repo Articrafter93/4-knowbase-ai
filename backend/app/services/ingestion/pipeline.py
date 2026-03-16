@@ -48,19 +48,23 @@ async def run_ingestion_pipeline(
         job.progress = 10
         await db.commit()
 
-        if doc.source_type.value == "url" and doc.source_url:
+        source_type = doc.source_type.value if hasattr(doc.source_type, "value") else str(doc.source_type)
+        existing_metadata = doc.doc_metadata or {}
+        tag_names = existing_metadata.get("tags", [])
+
+        if source_type == "url" and doc.source_url:
             text, metadata = await parse_url(doc.source_url)
-        elif doc.source_type.value == "note":
-            metadata = doc.doc_metadata or {}
+        elif source_type == "note":
+            metadata = existing_metadata
             text = (metadata.get("note_content") or "").strip()
             if not text:
                 raise ValueError("Note documents require note_content in doc_metadata")
-        elif doc.source_type.value == "audio" and doc.file_path:
+        elif source_type == "audio" and doc.file_path:
             audio_result = await transcribe_audio(doc.file_path)
             text = audio_result["text"]
             metadata = {
                 **audio_result,
-                "tags": [tag.name for tag in doc.tags],
+                "tags": tag_names,
             }
         elif doc.file_path:
             text, metadata = parse_file(doc.file_path, doc.mime_type)
@@ -71,9 +75,9 @@ async def run_ingestion_pipeline(
         if metadata.get("title") and doc.title in ("", "Untitled"):
             doc.title = metadata["title"][:500]
         doc.doc_metadata = {
-            **(doc.doc_metadata or {}),
+            **existing_metadata,
             **metadata,
-            "tags": [tag.name for tag in doc.tags],
+            "tags": tag_names,
         }
 
         # ── 2. Chunk ──────────────────────────────────────────────────────────
@@ -129,16 +133,16 @@ async def run_ingestion_pipeline(
                         status="active",
                         text=chunk.text,
                         dense_embedding=embedding,
-                metadata={
-                    "doc_title": doc.title,
-                    "source_type": doc.source_type,
-                    "page_number": chunk.page_number,
-                    "section_title": chunk.section_title,
-                    "source_url": doc.source_url,
-                    "created_at": doc.created_at.isoformat(),
-                    "tags": [tag.name for tag in doc.tags],
-                },
-            )
+                        metadata={
+                            "doc_title": doc.title,
+                            "source_type": source_type,
+                            "page_number": chunk.page_number,
+                            "section_title": chunk.section_title,
+                            "source_url": doc.source_url,
+                            "created_at": doc.created_at.isoformat(),
+                            "tags": tag_names,
+                        },
+                    )
                 log.info("Qdrant dual-write complete", chunks=len(chunk_objs))
             except Exception as exc:
                 log.warning("Qdrant dual-write failed (pgvector OK)", error=str(exc))

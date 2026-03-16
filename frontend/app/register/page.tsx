@@ -20,7 +20,7 @@ export default function RegisterPage() {
       localStorage.setItem('kb_access_token', data.access_token);
       localStorage.setItem('kb_refresh_token', data.refresh_token);
       router.push('/library');
-    } catch (err: any) {
+    } catch {
       setError('Registration failed. Email may already be in use.');
     } finally {
       setLoading(false);

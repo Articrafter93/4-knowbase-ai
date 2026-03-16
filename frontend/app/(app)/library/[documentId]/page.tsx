@@ -4,46 +4,40 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { library as libApi } from '../../../../lib/api';
-
-type Chunk = {
-  id: string;
-  highlighted_text: string;
-  text: string;
-  page_number?: number;
-  section_title?: string;
-};
-
-type DocumentPayload = {
-  id: string;
-  title: string;
-  source_type: string;
-  source_url?: string;
-  tags?: string[];
-};
+import { library as libApi, type DocumentChunk, type DocumentDetail } from '../../../../lib/api';
 
 export default function DocumentDetailPage() {
   const params = useParams<{ documentId: string }>();
   const searchParams = useSearchParams();
-  const [document, setDocument] = useState<DocumentPayload | null>(null);
-  const [chunks, setChunks] = useState<Chunk[]>([]);
+  const [document, setDocument] = useState<DocumentDetail | null>(null);
+  const [chunks, setChunks] = useState<DocumentChunk[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const highlightChunkId = searchParams.get('chunkId') || undefined;
 
   useEffect(() => {
     async function load() {
       if (!params.documentId) return;
-      const payload = await libApi.getDocumentChunks(params.documentId, highlightChunkId);
-      setDocument(payload.document);
-      setChunks(payload.chunks);
-      setLoading(false);
+      try {
+        const payload = await libApi.getDocumentChunks(params.documentId, highlightChunkId);
+        setDocument(payload.document);
+        setChunks(payload.chunks);
+        setError('');
+      } catch (err) {
+        setDocument(null);
+        setChunks([]);
+        setError(err instanceof Error ? err.message : 'Could not load document view.');
+      } finally {
+        setLoading(false);
+      }
     }
 
     void load();
   }, [params.documentId, highlightChunkId]);
 
   if (loading) return <div style={{ padding: '32px' }}>Loading document view...</div>;
+  if (error) return <div style={{ padding: '32px', color: 'var(--error)' }}>{error}</div>;
   if (!document) return <div style={{ padding: '32px' }}>Document not found.</div>;
 
   return (

@@ -22,6 +22,11 @@ from app.services.security.trimming import get_accessible_collection_ids
 
 log = structlog.get_logger()
 
+
+def _has_valid_openai_key() -> bool:
+    key = (settings.OPENAI_API_KEY or "").strip()
+    return bool(key) and "placeholder" not in key.lower()
+
 _llm = ChatOpenAI(
     model=settings.LLM_PRIMARY_MODEL,
     api_key=settings.OPENAI_API_KEY,
@@ -66,6 +71,10 @@ class RAGState(TypedDict):
 
 async def route_intent(state: RAGState) -> RAGState:
     """Classify the user's intent to guide retrieval strategy."""
+    if not _has_valid_openai_key():
+        state["intent"] = "search"
+        return state
+
     response = await _router_llm.ainvoke([
         {"role": "system", "content": "Classify the user's intent as one of: search, summarize, compare, extract, task, chat. Respond with just the label."},
         {"role": "user", "content": state["query"]},
@@ -164,13 +173,25 @@ async def generate(state: RAGState) -> RAGState:
         "If the sources don't contain the answer, say so clearly. "
         "Be precise, concise and professional."
     )
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"SOURCES:\n{state['context']}\n\nQUESTION: {state['query']}"},
-    ]
-    # Non-streaming for graph coherence; routing layer streams separately
-    response = await _llm.ainvoke(messages)
-    state["answer"] = response.content
+    if not _has_valid_openai_key():
+        chunks = state["retrieved_chunks"]
+        if not chunks:
+            state["answer"] = "I could not find relevant information in your knowledge base for that question."
+        else:
+            bullet_lines = []
+            for i, chunk in enumerate(chunks[:3], start=1):
+                snippet = " ".join(chunk["text"].split())[:220]
+                bullet_lines.append(f"- {snippet} [SOURCE {i}]")
+            state["answer"] = "Based on your knowledge base:\n" + "\n".join(bullet_lines)
+    else:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"SOURCES:\n{state['context']}\n\nQUESTION: {state['query']}"},
+        ]
+        # Non-streaming for graph coherence; routing layer streams separately
+        response = await _llm.ainvoke(messages)
+        state["answer"] = response.content
+
     state["retrieval_metadata"] = {
         "intent": state.get("intent"),
         "chunk_count": len(state["retrieved_chunks"]),

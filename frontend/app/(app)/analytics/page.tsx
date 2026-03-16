@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { admin } from '../../../lib/api';
-
-type QueryStats = { period_days: number; total_queries: number; total_tokens: number; estimated_cost_usd: number; avg_latency_ms: number };
-type TopDoc = { id: string; title: string; source_type: string; chunk_count: number; citation_count: number };
-type Failure = { message_id: string; snippet: string; created_at: string };
-type IndexHealth = { documents_by_status: Record<string, number>; chunks: { total: number; embedded: number }; embedding_coverage: number };
+import {
+  admin,
+  type IndexHealth,
+  type QueryAnalytics,
+  type RetrievalFailure,
+  type TopDocument,
+} from '../../../lib/api';
 
 const SOURCE_ICONS: Record<string, string> = { pdf: '📄', docx: '📝', txt: '📃', markdown: '📋', url: '🔗', image: '🖼', audio: '🎵', note: '✏️' };
 
@@ -24,16 +25,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export default function AnalyticsPage() {
-  const [queryStats, setQueryStats] = useState<QueryStats | null>(null);
-  const [topDocs, setTopDocs] = useState<TopDoc[]>([]);
-  const [failures, setFailures] = useState<Failure[]>([]);
+  const [queryStats, setQueryStats] = useState<QueryAnalytics | null>(null);
+  const [topDocs, setTopDocs] = useState<TopDocument[]>([]);
+  const [failures, setFailures] = useState<RetrievalFailure[]>([]);
   const [health, setHealth] = useState<IndexHealth | null>(null);
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       admin.getStats(),
       admin.getQueryAnalytics(days),
@@ -41,7 +41,7 @@ export default function AnalyticsPage() {
       admin.getRetrievalFailures(10),
       admin.getIndexHealth(),
     ])
-      .then(([_stats, qs, docs, fails, h]) => {
+      .then(([, qs, docs, fails, h]) => {
         setQueryStats(qs);
         setTopDocs(Array.isArray(docs) ? docs : []);
         setFailures(Array.isArray(fails) ? fails : []);
@@ -68,7 +68,12 @@ export default function AnalyticsPage() {
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           {[7, 30, 90].map(d => (
-            <button key={d} onClick={() => setDays(d)}
+            <button key={d} onClick={() => {
+              if (d !== days) {
+                setLoading(true);
+                setDays(d);
+              }
+            }}
               style={{ padding: '5px 14px', borderRadius: '99px', border: `1px solid ${days === d ? 'var(--accent)' : 'var(--border)'}`, background: days === d ? 'var(--accent-dim)' : 'transparent', color: days === d ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: days === d ? 600 : 400, transition: 'all 150ms' }}>
               {d}d
             </button>

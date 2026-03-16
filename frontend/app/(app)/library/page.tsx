@@ -3,29 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
-import { library as libApi, search as searchApi } from '../../../lib/api';
-
-type SearchResult = {
-  chunk_id: string;
-  document_id: string;
-  doc_title: string;
-  fragment: string;
-  score: number;
-  page_number?: number;
-  source_type?: string;
-};
-
-type DocumentItem = {
-  id: string;
-  title: string;
-  source_type: string;
-  status: string;
-  is_favorite: boolean;
-  chunk_count?: number;
-  word_count?: number;
-  created_at: string;
-  tags?: string[];
-};
+import {
+  library as libApi,
+  search as searchApi,
+  type CollectionSummary,
+  type DocumentSummary,
+  type SearchResult,
+} from '../../../lib/api';
 
 const SOURCE_ICONS: Record<string, string> = {
   pdf: 'PDF',
@@ -49,9 +33,10 @@ function SkeletonCard() {
 }
 
 export default function LibraryPage() {
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [collections, setCollections] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -62,6 +47,7 @@ export default function LibraryPage() {
 
   useEffect(() => {
     setLoading(true);
+    setError('');
     Promise.all([
       libApi.getDocuments(selectedCollection, statusFilter, showFavorites),
       libApi.getCollections(),
@@ -69,6 +55,11 @@ export default function LibraryPage() {
       .then(([docs, cols]) => {
         setDocuments(docs);
         setCollections(cols);
+      })
+      .catch((err) => {
+        setDocuments([]);
+        setCollections([]);
+        setError(err instanceof Error ? err.message : 'Could not load library data.');
       })
       .finally(() => setLoading(false));
   }, [selectedCollection, statusFilter, showFavorites]);
@@ -89,6 +80,9 @@ export default function LibraryPage() {
           collectionId: selectedCollection,
         });
         setSearchResults(response.results);
+      } catch (err) {
+        setSearchResults([]);
+        setError(err instanceof Error ? err.message : 'Search failed.');
       } finally {
         setSearching(false);
       }
@@ -96,29 +90,37 @@ export default function LibraryPage() {
   }
 
   async function handleToggleFavorite(id: string) {
-    const response = await libApi.toggleFavorite(id);
-    setDocuments((current) =>
-      current.map((document) =>
-        document.id === id ? { ...document, is_favorite: response.is_favorite } : document,
-      ),
-    );
+    try {
+      const response = await libApi.toggleFavorite(id);
+      setDocuments((current) =>
+        current.map((document) =>
+          document.id === id ? { ...document, is_favorite: response.is_favorite } : document,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update favorite state.');
+    }
   }
 
   async function updateDocStatus(id: string, newStatus: string) {
-    if (newStatus === 'deleted') {
-      await libApi.deleteDocument(id);
-      setDocuments((current) => current.filter((document) => document.id !== id));
-      return;
-    }
+    try {
+      if (newStatus === 'deleted') {
+        await libApi.deleteDocument(id);
+        setDocuments((current) => current.filter((document) => document.id !== id));
+        return;
+      }
 
-    await libApi.updateDocumentStatus(id, newStatus);
-    if (newStatus !== statusFilter) {
-      setDocuments((current) => current.filter((document) => document.id !== id));
-      return;
+      await libApi.updateDocumentStatus(id, newStatus);
+      if (newStatus !== statusFilter) {
+        setDocuments((current) => current.filter((document) => document.id !== id));
+        return;
+      }
+      setDocuments((current) =>
+        current.map((document) => (document.id === id ? { ...document, status: newStatus } : document)),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update document status.');
     }
-    setDocuments((current) =>
-      current.map((document) => (document.id === id ? { ...document, status: newStatus } : document)),
-    );
   }
 
   return (
@@ -230,10 +232,16 @@ export default function LibraryPage() {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
+        {error ? (
+          <div className="glass-card" style={{ padding: '16px 18px', marginBottom: '18px', borderLeft: '3px solid var(--error)' }}>
+            <p style={{ color: 'var(--error)', fontSize: '0.85rem', marginBottom: '6px' }}>Backend unavailable</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{error}</p>
+          </div>
+        ) : null}
         {searchResults !== null ? (
           <div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              {searchResults.length} results for "{searchQuery}"
+              {searchResults.length} results for &ldquo;{searchQuery}&rdquo;
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {searchResults.map((result, index) => (

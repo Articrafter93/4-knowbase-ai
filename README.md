@@ -144,6 +144,38 @@ What they do:
 - `test`: verifies required project files exist and are readable.
 - `test:smoke`: validates core product markers such as note ingestion, chunk navigation and filtered search support.
 
+## Mandatory Functional Pass
+
+This repository requires a real functional pass for any runtime-impacting change. The rule is enforced at repository level in [AGENTS.md](./AGENTS.md).
+
+The functional pass is required for changes affecting:
+
+- auth
+- ingestion
+- library
+- search or retrieval
+- chat
+- memory
+- admin
+- Docker or env wiring
+- frontend interaction flows
+
+Minimum evidence expected before closing work:
+
+1. services healthy
+2. affected flow exercised in browser
+3. backend request verified
+4. resulting state visible in UI
+5. blocking issue identified from logs if the flow fails
+
+Example closure evidence:
+
+- `GET /health -> 200`
+- `POST /api/v1/ingest/note -> 202`
+- ingestion job reaches `completed`
+- document appears in library
+- chat answers with a visible citation and linked source
+
 ## Current Evidence
 
 - `frontend/app/(app)/chat/page.tsx`: chat UI with citations and source navigation.

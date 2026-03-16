@@ -13,6 +13,10 @@ from app.models.memory import Memory, MemoryType
 from app.services.embeddings.provider import embed_texts
 
 
+def _to_pgvector_literal(values: List[float]) -> str:
+    return "[" + ",".join(f"{float(value):.8f}" for value in values) + "]"
+
+
 async def embed_and_store_memory(db: AsyncSession, memory: Memory) -> None:
     """Generate embedding for a memory and persist it."""
     embeddings = await embed_texts([memory.content])
@@ -54,7 +58,7 @@ async def semantic_memory_search(
 
     params: dict = {
         "user_id": str(user_id),
-        "embedding": query_embedding,
+        "embedding": _to_pgvector_literal(query_embedding),
         "top_k": top_k,
     }
     if namespace:

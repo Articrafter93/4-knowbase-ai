@@ -5,7 +5,7 @@ import json
 import time
 import uuid
 from datetime import datetime
-from typing import AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -32,6 +32,18 @@ class ChatRequest(BaseModel):
 class MessageFeedbackRequest(BaseModel):
     feedback: MessageFeedback
     notes: Optional[str] = None
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    return value
 
 
 async def _get_or_create_conversation(
@@ -103,7 +115,7 @@ async def _stream_rag_response(
             conversation_id=conversation.id,
             role="assistant",
             content=answer,
-            retrieved_chunks=result["retrieved_chunks"],
+            retrieved_chunks=_json_safe(result["retrieved_chunks"]),
             retrieval_backend=result["retrieval_metadata"].get("backend"),
             latency_ms=latency_ms,
             prompt_tokens=len(body.query.split()),

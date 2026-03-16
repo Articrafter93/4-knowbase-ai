@@ -1,14 +1,13 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
-import { memory as memApi } from '../../../lib/api';
-
-type Memory = { id: string; content: string; memory_type: string; namespace: string; importance: number; tags?: string[]; updated_at: string; };
+import { memory as memApi, type MemoryItem } from '../../../lib/api';
 
 const TYPE_ICONS: Record<string, string> = { fact: '◈', preference: '⬟', project: '⬡', person: '◉', context: '◫' };
 
 export default function MemoryPage() {
-  const [memories, setMemories] = useState<Memory[]>([]);
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newType, setNewType] = useState('fact');
   const [adding, setAdding] = useState(false);
@@ -16,27 +15,50 @@ export default function MemoryPage() {
   const [editContent, setEditContent] = useState('');
 
   useEffect(() => {
-    memApi.list().then(setMemories).finally(() => setLoading(false));
+    memApi.list()
+      .then((items) => {
+        setMemories(items);
+        setError('');
+      })
+      .catch((err) => {
+        setMemories([]);
+        setError(err instanceof Error ? err.message : 'Could not load memory.');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const addMemory = useCallback(async () => {
     if (!newContent.trim()) return;
     setAdding(true);
-    const mem = await memApi.create(newContent.trim(), newType);
-    setMemories(prev => [{ ...mem, memory_type: newType, namespace: 'general', importance: 5, updated_at: new Date().toISOString() }, ...prev]);
-    setNewContent('');
-    setAdding(false);
+    try {
+      const mem = await memApi.create(newContent.trim(), newType);
+      setMemories(prev => [{ ...mem, memory_type: newType, namespace: 'general', importance: 5, updated_at: new Date().toISOString() }, ...prev]);
+      setNewContent('');
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create memory.');
+    } finally {
+      setAdding(false);
+    }
   }, [newContent, newType]);
 
   const deleteMemory = async (id: string) => {
-    await memApi.remove(id);
-    setMemories(prev => prev.filter(m => m.id !== id));
+    try {
+      await memApi.remove(id);
+      setMemories(prev => prev.filter(m => m.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete memory.');
+    }
   };
 
   const saveEdit = async (id: string) => {
-    await memApi.update(id, { content: editContent });
-    setMemories(prev => prev.map(m => m.id === id ? { ...m, content: editContent } : m));
-    setEditingId(null);
+    try {
+      await memApi.update(id, { content: editContent });
+      setMemories(prev => prev.map(m => m.id === id ? { ...m, content: editContent } : m));
+      setEditingId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update memory.');
+    }
   };
 
   return (
@@ -45,6 +67,11 @@ export default function MemoryPage() {
       <p style={{ color: 'var(--text-muted)', marginBottom: '32px', fontSize: '0.9rem' }}>
         Facts, preferences, projects and context the AI uses across all conversations.
       </p>
+      {error ? (
+        <div className="glass-card" style={{ padding: '14px 16px', marginBottom: '20px', borderLeft: '3px solid var(--error)' }}>
+          <p style={{ color: 'var(--error)', fontSize: '0.82rem' }}>{error}</p>
+        </div>
+      ) : null}
 
       {/* Add new memory */}
       <div className="glass-card" style={{ padding: '22px 24px', marginBottom: '28px' }}>

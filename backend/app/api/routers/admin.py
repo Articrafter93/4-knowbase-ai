@@ -1,7 +1,7 @@
 """
 Admin router — system stats, job monitor, analytics and configuration.
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -16,7 +16,7 @@ from app.services.analytics.telemetry import (
 )
 from app.core.config import settings
 
-router = APIRouter(dependencies=[require_role(UserRole.ADMIN, UserRole.OWNER)])
+router = APIRouter(dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.OWNER))])
 
 
 class AdminConfigResponse(BaseModel):

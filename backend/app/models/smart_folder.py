@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -29,7 +29,7 @@ class SmartFolder(Base):
     # Saved search parameters
     query: str = Column(Text, nullable=False)             # Natural language query
     filters: dict = Column(JSON, nullable=True)           # e.g. {collection_id, source_types, date_range}
-    top_k: int = Column(nullable=False, default=20)
+    top_k: int = Column(Integer, nullable=False, default=20)
 
     created_at: datetime = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -1,6 +1,7 @@
 """
 Async SQLAlchemy engine and session factory.
 """
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -30,6 +31,7 @@ async def create_db_and_tables() -> None:
     """Create tables on startup (dev only; use Alembic for prod)."""
     from app.models import conversation, document, memory, permission, smart_folder, user  # noqa: F401
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
 
