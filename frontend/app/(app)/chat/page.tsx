@@ -151,6 +151,7 @@ export default function ChatPage() {
   const [ragStatus, setRagStatus] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -160,6 +161,7 @@ export default function ChatPage() {
   useEffect(() => {
     const syncViewport = () => setIsMobile(window.innerWidth < 900);
     syncViewport();
+    setMounted(true);
     window.addEventListener('resize', syncViewport);
     return () => window.removeEventListener('resize', syncViewport);
   }, []);
@@ -319,7 +321,7 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {!isMobile && typeof document !== 'undefined' && document.getElementById('right-panel-content')
+      {mounted && !isMobile && typeof document !== 'undefined' && document.getElementById('right-panel-content')
         ? createPortal(
             <div className="fade-rise">
               {selectedCitation ? (
@@ -349,7 +351,7 @@ export default function ChatPage() {
                   <div style={{ marginBottom: '20px' }}>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginBottom: '8px', textTransform: 'uppercase' }}>Cited fragment</p>
                     <div style={{ padding: '16px', background: 'rgba(91,140,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', fontSize: '0.875rem', lineHeight: 1.6, color: 'var(--text-muted)' }}>
-                      "{selectedCitation.fragment}"
+                      &ldquo;{selectedCitation.fragment}&rdquo;
                     </div>
                   </div>
 

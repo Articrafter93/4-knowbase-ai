@@ -14,6 +14,11 @@ from app.models.memory import Memory, MemoryType
 
 log = structlog.get_logger()
 
+
+def _has_valid_openai_key() -> bool:
+    key = (settings.OPENAI_API_KEY or "").strip()
+    return bool(key) and "placeholder" not in key.lower()
+
 _extractor_llm = ChatOpenAI(
     model=settings.LLM_ROUTING_MODEL,   # cheap model for extraction
     api_key=settings.OPENAI_API_KEY,
@@ -48,6 +53,9 @@ async def extract_memories_from_turn(
     Extract memorable facts from a conversation turn.
     Returns list of raw memory dicts (not yet persisted).
     """
+    if not _has_valid_openai_key():
+        return []
+
     prompt = f"USER: {user_message}\nASSISTANT: {assistant_message}"
     try:
         response = await _extractor_llm.ainvoke([

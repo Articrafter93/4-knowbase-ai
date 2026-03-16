@@ -24,6 +24,7 @@ def run_ingestion_task(self, document_id: str, job_id: str):
     """Celery task that runs the async ingestion pipeline via asyncio.run()."""
     log.info("Worker: starting ingestion task", document_id=document_id)
     try:
+        import app.models  # noqa: F401
         from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
         async_engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
         async_session = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)

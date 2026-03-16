@@ -2,19 +2,11 @@
 
 import { useCallback, useRef, useState } from 'react';
 
-import { ingest } from '../../../lib/api';
-
-type JobStatus = {
-  document_id: string;
-  job_id: string;
-  status: string;
-  progress: number;
-  error_message?: string;
-};
+import { ingest, type IngestJob } from '../../../lib/api';
 
 export default function UploadPage() {
   const [dragging, setDragging] = useState(false);
-  const [jobs, setJobs] = useState<JobStatus[]>([]);
+  const [jobs, setJobs] = useState<IngestJob[]>([]);
   const [urlInput, setUrlInput] = useState('');
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');

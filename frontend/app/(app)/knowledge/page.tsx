@@ -1,17 +1,29 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { library as libApi, admin as adminApi } from '../../../lib/api';
+import { admin as adminApi, library as libApi, type AdminStats, type DocumentSummary } from '../../../lib/api';
 
 export default function KnowledgePage() {
-  const [docs, setDocs] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [docs, setDocs] = useState<DocumentSummary[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     Promise.all([
       libApi.getDocuments(),
       adminApi.getStats().catch(() => null),
-    ]).then(([d, s]) => { setDocs(d.slice(0, 8)); setStats(s); }).finally(() => setLoading(false));
+    ])
+      .then(([d, s]) => {
+        setDocs(d.slice(0, 8));
+        setStats(s);
+        setError('');
+      })
+      .catch((err) => {
+        setDocs([]);
+        setStats(null);
+        setError(err instanceof Error ? err.message : 'Could not load knowledge overview.');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const statusColor: Record<string, string> = { active: 'var(--accent2)', processing: 'var(--warn)', failed: 'var(--error)', archived: 'var(--text-subtle)' };
@@ -20,6 +32,11 @@ export default function KnowledgePage() {
     <div className="fade-rise" style={{ padding: '36px 36px' }}>
       <h1 style={{ fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '6px' }}>Knowledge Panel</h1>
       <p style={{ color: 'var(--text-muted)', marginBottom: '36px', fontSize: '0.9rem' }}>Overview of your knowledge base health and activity.</p>
+      {error ? (
+        <div className="glass-card" style={{ padding: '14px 16px', marginBottom: '20px', borderLeft: '3px solid var(--error)' }}>
+          <p style={{ color: 'var(--error)', fontSize: '0.82rem' }}>{error}</p>
+        </div>
+      ) : null}
 
       {/* Stats */}
       {stats && (

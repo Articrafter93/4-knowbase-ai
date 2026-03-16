@@ -10,6 +10,7 @@ type SearchResult = { id: string; doc_title: string; fragment: string; score: nu
 export default function SmartFoldersPage() {
   const [folders, setFolders] = useState<SmartFolder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newQuery, setNewQuery] = useState('');
@@ -20,19 +21,31 @@ export default function SmartFoldersPage() {
 
   useEffect(() => {
     fetch(`${API_BASE}/api/v1/smart-folders/`, { headers: auth() })
-      .then(r => r.json()).then(setFolders).finally(() => setLoading(false));
+      .then(r => r.json())
+      .then((data) => {
+        setFolders(data);
+        setError('');
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load smart folders.'))
+      .finally(() => setLoading(false));
   }, []);
 
   const createFolder = useCallback(async () => {
     if (!newName.trim() || !newQuery.trim()) return;
     setCreating(true);
-    const res = await fetch(`${API_BASE}/api/v1/smart-folders/`, {
-      method: 'POST', headers: auth(),
-      body: JSON.stringify({ name: newName.trim(), query: newQuery.trim(), icon: newIcon }),
-    }).then(r => r.json());
-    setFolders(prev => [{ id: res.id, name: newName, query: newQuery, icon: newIcon, top_k: 20 }, ...prev]);
-    setNewName(''); setNewQuery('');
-    setCreating(false);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/smart-folders/`, {
+        method: 'POST', headers: auth(),
+        body: JSON.stringify({ name: newName.trim(), query: newQuery.trim(), icon: newIcon }),
+      }).then(r => r.json());
+      setFolders(prev => [{ id: res.id, name: newName, query: newQuery, icon: newIcon, top_k: 20 }, ...prev]);
+      setNewName(''); setNewQuery('');
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create smart folder.');
+    } finally {
+      setCreating(false);
+    }
   }, [newName, newQuery, newIcon]);
 
   const executeFolder = useCallback(async (f: SmartFolder) => {
@@ -43,13 +56,21 @@ export default function SmartFoldersPage() {
         method: 'POST', headers: auth(),
       }).then(r => r.json());
       setResults(prev => ({ ...prev, [f.id]: data.results || [] }));
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not execute smart folder.');
     } finally { setExecuting(null); }
   }, []);
 
   const deleteFolder = async (id: string) => {
-    await fetch(`${API_BASE}/api/v1/smart-folders/${id}`, { method: 'DELETE', headers: auth() });
-    setFolders(prev => prev.filter(f => f.id !== id));
-    setResults(prev => { const r = { ...prev }; delete r[id]; return r; });
+    try {
+      await fetch(`${API_BASE}/api/v1/smart-folders/${id}`, { method: 'DELETE', headers: auth() });
+      setFolders(prev => prev.filter(f => f.id !== id));
+      setResults(prev => { const r = { ...prev }; delete r[id]; return r; });
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete smart folder.');
+    }
   };
 
   const ICON_OPTIONS = ['🔍', '📌', '⭐', '🏷️', '🚀', '💡', '📚', '🔬', '🎯', '📅'];
@@ -58,6 +79,11 @@ export default function SmartFoldersPage() {
     <div className="fade-rise" style={{ maxWidth: '820px', margin: '0 auto', padding: '36px 24px' }}>
       <h1 style={{ fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '6px' }}>Smart Folders</h1>
       <p style={{ color: 'var(--text-muted)', marginBottom: '28px', fontSize: '0.875rem' }}>Saved searches that always show fresh results from your current knowledge base.</p>
+      {error ? (
+        <div className="glass-card" style={{ padding: '14px 16px', marginBottom: '20px', borderLeft: '3px solid var(--error)' }}>
+          <p style={{ color: 'var(--error)', fontSize: '0.82rem' }}>{error}</p>
+        </div>
+      ) : null}
 
       {/* Create new */}
       <div className="glass-card" style={{ padding: '22px 26px', marginBottom: '28px' }}>

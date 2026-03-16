@@ -6,10 +6,11 @@ from __future__ import annotations
 import uuid
 from typing import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import delete, inspect, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import NO_VALUE, set_committed_value
 
-from app.models.document import Chunk, Document, Tag
+from app.models.document import Chunk, Document, Tag, document_tags
 
 
 def normalize_tags(tags: Iterable[str] | None) -> list[str]:
@@ -34,8 +35,10 @@ async def assign_tags_to_document(
     tags: Iterable[str] | None,
 ) -> list[Tag]:
     normalized = normalize_tags(tags)
+    await db.execute(delete(document_tags).where(document_tags.c.document_id == document.id))
+
     if not normalized:
-        document.tags = []
+        set_committed_value(document, "tags", [])
         return []
 
     result = await db.execute(
@@ -56,11 +59,18 @@ async def assign_tags_to_document(
             existing[tag_name] = tag
         attached.append(tag)
 
-    document.tags = attached
+    await db.execute(
+        insert(document_tags),
+        [{"document_id": document.id, "tag_id": tag.id} for tag in attached],
+    )
+    set_committed_value(document, "tags", attached)
     return attached
 
 
 def serialize_document(document: Document) -> dict:
+    tags_state = inspect(document).attrs.tags.loaded_value
+    tags = [] if tags_state is NO_VALUE else [tag.name for tag in tags_state]
+
     return {
         "id": str(document.id),
         "title": document.title,
@@ -74,7 +84,7 @@ def serialize_document(document: Document) -> dict:
         "word_count": document.word_count,
         "doc_metadata": document.doc_metadata,
         "collection_id": str(document.collection_id) if document.collection_id else None,
-        "tags": [tag.name for tag in document.tags],
+        "tags": tags,
         "created_at": document.created_at,
         "updated_at": document.updated_at,
         "indexed_at": document.indexed_at,

@@ -2,40 +2,20 @@
 
 import { useEffect, useState } from 'react';
 
-import { admin as adminApi } from '../../../lib/api';
-
-type Job = {
-  id: string;
-  document_id: string;
-  status: string;
-  progress: number;
-  error_message?: string;
-  created_at: string;
-};
-
-type Stats = {
-  documents: { total: number; indexed: number };
-  ingestion_jobs: { active: number };
-};
-
-type AdminConfig = {
-  rag_prompt: string;
-  memory_rule: string;
-  retrieval_backend: string;
-  top_k: number;
-  rerank_top_k: number;
-};
+import { admin as adminApi, type AdminConfig, type AdminJob, type AdminStats } from '../../../lib/api';
 
 export default function AdminPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [jobs, setJobs] = useState<AdminJob[]>([]);
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'jobs' | 'prompts' | 'memory'>('jobs');
 
   useEffect(() => {
     async function load() {
       try {
+        setError('');
         const [statsPayload, jobsPayload, configPayload] = await Promise.all([
           adminApi.getStats(),
           adminApi.getJobs(),
@@ -44,6 +24,11 @@ export default function AdminPage() {
         setStats(statsPayload);
         setJobs(jobsPayload);
         setConfig(configPayload);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not load admin data.');
+        setStats(null);
+        setJobs([]);
+        setConfig(null);
       } finally {
         setLoading(false);
       }
@@ -114,6 +99,12 @@ export default function AdminPage() {
       </div>
 
       {loading ? <div>Loading admin data...</div> : null}
+      {!loading && error ? (
+        <div className="glass-card" style={{ padding: '16px 18px', marginBottom: '20px', borderLeft: '3px solid var(--error)' }}>
+          <p style={{ color: 'var(--error)', fontSize: '0.85rem', marginBottom: '6px' }}>Admin API unavailable</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{error}</p>
+        </div>
+      ) : null}
 
       {!loading && activeTab === 'jobs' ? (
         <div className="glass-card" style={{ overflow: 'hidden' }}>

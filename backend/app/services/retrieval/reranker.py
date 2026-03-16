@@ -13,6 +13,11 @@ from app.core.config import settings
 
 log = structlog.get_logger()
 
+
+def _has_valid_openai_key() -> bool:
+    key = (settings.OPENAI_API_KEY or "").strip()
+    return bool(key) and "placeholder" not in key.lower()
+
 _rerank_llm = ChatOpenAI(
     model=settings.LLM_ROUTING_MODEL,
     api_key=settings.OPENAI_API_KEY,
@@ -31,6 +36,8 @@ async def llm_rerank(query: str, chunks: List[dict], top_k: int = 6) -> List[dic
     Falls back to original order on any error.
     """
     if not chunks or len(chunks) <= top_k:
+        return chunks[:top_k]
+    if not _has_valid_openai_key():
         return chunks[:top_k]
 
     # Build snippet list for LLM
