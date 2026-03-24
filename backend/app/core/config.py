@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    DEMO_USER_EMAIL: str = "demo@knowbase.app"
+    DEMO_USER_PASSWORD: str = "DemoPass123!"
+    DEMO_USER_FULL_NAME: str = "Demo User"
 
     # ── AI / LLM ─────────────────────────────────────────────────────────────
     OPENAI_API_KEY: str = ""
