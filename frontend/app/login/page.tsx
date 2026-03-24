@@ -6,8 +6,10 @@ import { auth } from '../../lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const demoEmail = 'demo@knowbase.app';
+  const demoPassword = 'DemoPass123!';
+  const [email, setEmail] = useState(demoEmail);
+  const [password, setPassword] = useState(demoPassword);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -56,6 +58,9 @@ export default function LoginPage() {
         {/* Card */}
         <div className="glass-card" style={{ padding: '32px' }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '24px' }}>Sign in</h2>
+          <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(91,140,255,0.12)', border: '1px solid rgba(91,140,255,0.22)', color: 'var(--text-primary)', fontSize: '0.9rem', lineHeight: 1.45 }}>
+            Demo access is prefilled below. Use <strong>{demoEmail}</strong> and <strong>{demoPassword}</strong> to enter the full product.
+          </div>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
@@ -77,6 +82,17 @@ export default function LoginPage() {
 
             <button id="login-submit" type="submit" className="btn-primary" disabled={loading} style={{ justifyContent: 'center', marginTop: '4px' }}>
               {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setEmail(demoEmail);
+                setPassword(demoPassword);
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              Use demo credentials
             </button>
           </form>
 

@@ -66,6 +66,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-knowbase}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-knowbase}
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
+      PYTHONPATH: /app
     ports:
       - "8000:8000"
     volumes:
@@ -98,6 +99,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-knowbase}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-knowbase}
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
+      PYTHONPATH: /app
     volumes:
       - ./backend:/app
       - uploads_data:/app/uploads

@@ -20,6 +20,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kb_access_token') : null;
+    if (!token) {
+      router.replace('/login');
+      setAuthed(false);
+    } else {
+      setAuthed(true);
+    }
+  }, [router]);
 
   useEffect(() => {
     const syncViewport = () => {
@@ -40,6 +51,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('kb_refresh_token');
     router.push('/login');
   };
+
+  if (!authed) return null;
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)', flexDirection: isMobile ? 'column' : 'row' }}>

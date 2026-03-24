@@ -12,7 +12,9 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.api.routers import auth, chat, ingest, library, memory, search, admin
 from app.api.routers import sharing, smart_folders
 from app.core.config import settings
-from app.core.database import create_db_and_tables
+from app.core.database import async_session_factory, create_db_and_tables
+from app.core.security import hash_password
+from app.services.user_service import get_user_by_email, create_user
 
 log = structlog.get_logger()
 
@@ -22,6 +24,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup / shutdown lifecycle."""
     log.info("Starting KnowBase backend", version="0.3.0", env=settings.ENVIRONMENT)
     await create_db_and_tables()
+    try:
+        async with async_session_factory() as db:
+            demo_user = await get_user_by_email(db, settings.DEMO_USER_EMAIL)
+            if not demo_user:
+                await create_user(
+                    db,
+                    settings.DEMO_USER_EMAIL,
+                    settings.DEMO_USER_FULL_NAME,
+                    hash_password(settings.DEMO_USER_PASSWORD),
+                )
+                log.info("Demo user ensured", email=settings.DEMO_USER_EMAIL)
+    except Exception as exc:
+        log.warning("Demo user bootstrap skipped", error=str(exc))
 
     # Phase 3: OpenTelemetry instrumentation
     try:
@@ -72,4 +87,3 @@ app.include_router(smart_folders.router, prefix=f"{PREFIX}/smart-folders", tags=
 @app.get("/health", tags=["system"])
 async def health():
     return {"status": "ok", "service": "knowbase-backend", "version": "0.3.0"}
-
