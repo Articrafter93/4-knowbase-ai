@@ -51,7 +51,7 @@ dependencies = [
     "markdownify>=0.13.1",
 
     # Queue / worker
-    "celery>=5.4.0",
+    "celery>=5.6.3",
     "redis>=5.0.6",
     "kombu>=5.3.7",
 
