@@ -47,7 +47,7 @@ dependencies = [
     "httpx>=0.27.0",
     "html2text>=2024.2.26",
     "pillow>=10.3.0",
-    "pytesseract>=0.3.10",
+    "pytesseract>=0.3.13",
     "markdownify>=0.13.1",
 
     # Queue / worker
